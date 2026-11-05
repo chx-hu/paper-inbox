@@ -1,0 +1,6 @@
+interface:
+  display_name: "论文解读：核心思想与证据"
+  short_description: "用中文串起论文的核心思想、方法和证据，以正文 Figures 为主，逐图逐子图讲清是什么与为什么"
+  default_prompt: "请用 $paper-explainer 解读我提供的论文，依次解释问题定义、Motivation、Methods、Results，再逐图精读。问题定义与 Motivation 各 1–2 句，Methods 说清核心输入、关键步骤与输出，Results 提炼 2–3 条主要发现。以正文 Figures 为主，每张图先概括整体是什么与为什么，再按原始标签逐一简洁解释各子图的是什么与为什么，每个子图通常 1–2 句。必要时阅读与主要方法或结论密切相关的 SI、附录或 Extended Data，简短融入对应解释，无需逐图遍历。最后用 2–3 句 take-home message 收束，不追加覆盖清单或方法名称元数据。"
+policy:
+  allow_implicit_invocation: true

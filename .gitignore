@@ -1,0 +1,14 @@
+cache/
+__pycache__/
+*.py[cod]
+*.app/
+.venv/
+.env
+.env.*
+sources.json
+config.json
+vendor/
+reports/
+.paper-inbox/
+.DS_Store
+*.zip

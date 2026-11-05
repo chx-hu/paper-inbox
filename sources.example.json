@@ -1,0 +1,21 @@
+{
+  "project": "<source-folder>/vendor/zotero-arxiv-daily",
+  "retrieval_python": "<source-folder>/vendor/zotero-arxiv-daily/.venv/bin/python",
+  "zotero_db": "~/Zotero/zotero.sqlite",
+  "reading_project": "~/Documents/Paper Inbox Reading",
+  "arxiv_query": "cs.AI+cs.LG+q-bio.BM",
+  "biorxiv_query": "bioinformatics+biophysics",
+  "journal_group": "xx",
+  "lookback_days": 1,
+  "max_per_source": 10,
+  "daily_limit": 10,
+  "language": "zh-Hans",
+  "enabled_sources": [
+    "arXiv",
+    "bioRxiv",
+    "Journals"
+  ],
+  "schedule_utc_hour": 22,
+  "schedule_utc_minute": 0,
+  "embedding_cache": "<source-folder>/cache/huggingface"
+}
