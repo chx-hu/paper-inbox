@@ -9,7 +9,7 @@
 ### 功能
 
 - 来源：arXiv、bioRxiv 和可选期刊。默认精选最多 10 篇，可在设置中调整为 1–50 篇；Cell 和 Cell Systems 不参与检索。
-- 显示标题、作者及有依据的单位对应、来源、日期、相关性和中文摘要。支持未读、已读及收藏；文字可直接选中复制。
+- 显示标题、作者及有依据的单位对应、来源、日期、相关性和中文摘要。支持未读、已读及收藏；文字可直接选中复制。列表顶部的勾选按钮可一键将当前列表（含搜索筛选）中的未读论文标为已读，不改变收藏或 Zotero。
 - 设置中切换中文／English、选择期刊、分类、精读模型和推理强度。
 - 收藏触发 Codex 精读，多篇任务可以并行。报告包含问题、动机、方法、结果、正文图解读及 take-home message；SI 按需阅读。
 - 新精读的 Motivation 与 Take-home message 保存中英两版，随界面语言显示；普通论文摘要目前以中文为主。
@@ -81,7 +81,7 @@ A macOS inbox for research papers. Discover papers daily, rank them against your
 ### Features
 
 - Retrieve papers from arXiv, bioRxiv, and selected journals. The default daily limit is 10, configurable from 1 to 50. Cell and Cell Systems are excluded.
-- View titles, authors, supported author–affiliation links, sources, dates, relevance scores, and Chinese summaries. Track unread, read, and favorite papers; select text to copy it.
+- View titles, authors, supported author–affiliation links, sources, dates, relevance scores, and Chinese summaries. Track unread, read, and favorite papers; select text to copy it. The checkmark button above the list marks its unread papers as read, respecting the current search and filter without changing favorites or Zotero.
 - Switch the interface between Chinese and English. Configure sources, categories, journals, reading models, and reasoning effort in Settings.
 - Favoriting starts a Codex reading task; multiple tasks can run concurrently. Reports cover the problem, motivation, methods, results, main figures, and take-home message. Supplementary material is consulted when needed.
 - New reading tasks return Motivation and Take-home message in both Chinese and English, displayed in the selected interface language. Regular paper summaries remain primarily Chinese.

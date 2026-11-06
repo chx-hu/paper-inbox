@@ -18,6 +18,15 @@ class InboxTests(unittest.TestCase):
   server.action('p','read');x=server.snapshot()['papers'][0]
   self.assertTrue(x['read']);self.assertFalse(x['favorite']);self.assertEqual(x['score'],7.1)
   server.action('p','unread');self.assertFalse(server.snapshot()['papers'][0]['read'])
+ def test_bulk_read_is_scoped_idempotent_and_keeps_favorites(self):
+  with server.connect() as c:
+   for pid in ('a','b','outside'):
+    c.execute('INSERT INTO papers(id,data,day,favorite) VALUES(?,?,?,1)',(pid,json.dumps({'id':pid}),'2026-11-07'))
+  server.mark_read_many(['a','b','a','missing']);server.mark_read_many(['a','b'])
+  with server.connect() as c:
+   self.assertEqual([tuple(r) for r in c.execute('SELECT id,read,favorite FROM papers ORDER BY id')],[('a',1,1),('b',1,1),('outside',0,1)])
+   self.assertEqual(c.execute('SELECT count(*) FROM reading_requests_v3').fetchone()[0],0)
+  with self.assertRaises(ValueError):server.mark_read_many('all')
  def test_favorite_is_local_only(self):
   p={'id':'p','title':'test','url':'https://example.org/p','source':'test','score':7.1,'discovered':'2026-10-30','published':'2026-10-29'}
   with server.connect() as c:c.execute('INSERT INTO papers(id,data,day) VALUES(?,?,?)',('p',json.dumps(p),'2026-10-30'))

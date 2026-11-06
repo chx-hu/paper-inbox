@@ -8,6 +8,8 @@ typealias ViewState<Value> = SwiftUI.State<Value>
 
 enum UIStrings {
     static let english: [String: String] = [
+        "全部标为已读": "Mark all as read",
+        "将当前列表中的未读论文标为已读": "Mark unread papers in this list as read",
         "取消收藏会将 Zotero 文献移入回收站": "Unfavorite moves the Zotero item to Trash",
         "收藏并开始精读": "Favorite and start reading",
         "设置": "Settings",
@@ -291,6 +293,7 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
     @Published var selected: String?
     @Published var filter = "未读"
     @Published var searching = ""
+    @Published var markingAllRead = false
     @Published var busyIDs: Set<String> = []
     @Published var refreshing = false
     @Published var readingSettings = ReadingSettings()
@@ -392,6 +395,22 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
         }
         return items.dropFirst(index + 1).first { !$0.read && $0.id != id }
             ?? items.prefix(index).first { !$0.read && $0.id != id }
+    }
+    func markVisibleRead() {
+        guard !markingAllRead else { return }
+        let ids = visible.filter { !$0.read }.map { $0.id }
+        guard !ids.isEmpty else { return }
+        markingAllRead = true
+        Task {
+            defer { markingAllRead = false }
+            do {
+                let data = try await request("/api/read-many", payload: ["ids": ids])
+                let value = try JSONDecoder().decode(InboxState.self, from: data)
+                papers = value.papers; status = value.status; error = ""
+                onUnread?(papers.filter { !$0.read }.count)
+                if !visible.contains(where: { $0.id == selected }) { selected = visible.first?.id }
+            } catch { self.error = error.localizedDescription }
+        }
     }
     func action(_ paper: Paper, _ action: String) {
         guard !busyIDs.contains(paper.id) else { return }
@@ -645,6 +664,10 @@ struct InboxView: View {
                         Text(L(model.filter == "未读" ? "今日值得读" : model.filter)).font(.system(size: 23, weight: .semibold))
                     }
                     Spacer()
+                    Button { model.markVisibleRead() } label: { Image(systemName: "checkmark.circle") }
+                        .help(L("将当前列表中的未读论文标为已读"))
+                        .accessibilityLabel(L("全部标为已读"))
+                        .disabled(model.markingAllRead || !model.busyIDs.isEmpty || !model.visible.contains { !$0.read })
                     if model.status.updating { ProgressView().controlSize(.small) }
                     Button { model.update() } label: { Label(L(model.status.updating ? "更新中" : "更新"), systemImage: "arrow.clockwise") }
                         .disabled(model.status.updating)

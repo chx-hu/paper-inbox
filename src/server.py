@@ -196,6 +196,12 @@ def run_update():
   with LOCK:STATUS['updating']=False
 
 
+def mark_read_many(ids):
+ if not isinstance(ids,list) or len(ids)>10000 or any(not isinstance(pid,str) or len(pid)>128 for pid in ids):
+  raise ValueError('无效的论文列表')
+ with connect() as c:
+  c.executemany('UPDATE papers SET read=1 WHERE id=? AND read=0',[(pid,) for pid in set(ids)])
+
 def action(pid,act):
  if act not in ('read','unread','favorite','unfavorite'):raise ValueError('未知操作')
  with connect() as c:
@@ -265,9 +271,10 @@ class Handler(BaseHTTPRequestHandler):
   if not self.authorized():return self.reply({'error':'unauthorized'},401)
   try:
    n=int(self.headers.get('Content-Length',0))
-   if n>8192:raise ValueError('请求过大')
+   if n>(1500000 if self.path=='/api/read-many' else 8192):raise ValueError('请求过大')
    data=json.loads(self.rfile.read(n) or '{}')
    if self.path=='/api/action':action(data['id'],data['action'])
+   elif self.path=='/api/read-many':mark_read_many(data['ids'])
    elif self.path=='/api/update':threading.Thread(target=run_update,daemon=True).start()
    elif self.path=='/api/reading-settings':reading_dispatch.save_settings(data)
    elif self.path=='/api/app-settings':app_settings.save_settings(data)
