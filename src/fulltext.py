@@ -15,7 +15,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote, unquote, urlencode, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
-BASE = Path(__file__).resolve().parent
+BASE = Path(__file__).resolve().parents[1]
 
 
 def load_config():

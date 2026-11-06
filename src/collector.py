@@ -11,7 +11,7 @@ import socket
 import sys
 from app_settings import from_config, source_enabled, candidate_path, retrieval_fingerprint
 
-BASE = Path(__file__).resolve().parent
+BASE = Path(__file__).resolve().parents[1]
 
 
 def read_corpus(db):

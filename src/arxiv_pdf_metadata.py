@@ -3,7 +3,7 @@ import json,re,shutil,subprocess
 from pathlib import Path
 from urllib.request import Request,urlopen
 from arxiv_metadata import arxiv_id_from_url
-BASE=Path(__file__).resolve().parent/'cache'/'arxiv-pdf-metadata'
+BASE=Path(__file__).resolve().parents[1]/'cache'/'arxiv-pdf-metadata'
 ORG=re.compile(r'\b(?:University|Universität|Institute|Instituto|Laborator(?:y|ies)|College|School of|Department of|Corporation|Inc\.|Ltd\.|GmbH)',re.I)
 def parse_affiliations(text,authors):
  lines=text.splitlines();started=False;result=[]

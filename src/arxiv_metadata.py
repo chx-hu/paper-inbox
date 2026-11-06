@@ -12,7 +12,7 @@ from urllib.error import HTTPError
 import xml.etree.ElementTree as ET
 from author_affiliations import from_arxiv_html, from_author_records, merge_associations
 
-CACHE_DIR = Path(__file__).resolve().parent / 'cache' / 'arxiv-metadata'
+CACHE_DIR = Path(__file__).resolve().parents[1] / 'cache' / 'arxiv-metadata'
 RETRY_SECONDS = 86400
 CACHE_VERSION = 4
 MAX_BYTES = 4 * 1024 * 1024

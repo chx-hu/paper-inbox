@@ -163,7 +163,7 @@ def _descendants(node):
 def _excluded(node):
     return (node.tag in ('script', 'style') or
             node.attrs.get('href', '').casefold().startswith('mailto:') or
-            bool(node.classes & {'ltx_contact_name', 'ltx_role_email'}))
+            bool(node.classes & {'ltx_contact_name', 'ltx_role_email', 'ltx_note', 'ltx_note_mark', 'ltx_note_outer', 'ltx_note_content'}))
 
 
 def _events(node):
@@ -291,3 +291,27 @@ def from_arxiv_html(text, paper):
                     units.append(value)
         records.append({'name': name, 'affiliations': units})
     return from_author_records(records, paper)
+
+
+def apply_reviewed_associations(paper):
+    """Apply narrowly scoped, visually reviewed first-page corrections.
+
+    An explicit newer version or a changed title/author roster invalidates the
+    correction. Never generalize a spelling discrepancy to other papers.
+    """
+    import json
+    from pathlib import Path
+    from urllib.parse import urlsplit
+    aid = urlsplit(paper.get('url', '')).path.rsplit('/', 1)[-1]
+    match = re.fullmatch(r'(\d{4}\.\d{4,5})(?:v(\d+))?', aid)
+    if not match or match.group(2) not in (None, '1'):
+        return paper
+    try:
+        entry = json.loads(Path(__file__).with_name('reviewed_author_affiliations.json').read_text()).get(match.group(1))
+    except (OSError, ValueError):
+        return paper
+    if not entry or paper.get('title') != entry['title'] or paper.get('authors') != entry['authors']:
+        return paper
+    result = dict(paper, affiliations=entry['affiliations'], author_affiliations=entry['author_affiliations'])
+    result['author_affiliation_evidence'] = {k: entry[k] for k in ('source_url', 'page', 'pdf_sha256', 'evidence')}
+    return result

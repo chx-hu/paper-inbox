@@ -1,0 +1,121 @@
+{
+  "2610.41070": {
+    "title": "D2ML: Models for Direct-to-Biology Small Molecule Screening",
+    "authors": [
+      "Nigam, AkshatKumar",
+      "Amara, Neri",
+      "Dequina, Hillary",
+      "Kenanova, Dyana",
+      "Malmersjo, Seth",
+      "Ruggiu, Fiorella",
+      "Fucini, Raymond V.",
+      "Sadowsky, Jack",
+      "Hansen, Stig K.",
+      "Haque, Imran S."
+    ],
+    "affiliations": [
+      "Kimia Therapeutics, Berkeley, CA 94710"
+    ],
+    "author_affiliations": {
+      "Nigam, AkshatKumar": [
+        1
+      ],
+      "Amara, Neri": [
+        1
+      ],
+      "Dequina, Hillary": [
+        1
+      ],
+      "Kenanova, Dyana": [
+        1
+      ],
+      "Malmersjo, Seth": [
+        1
+      ],
+      "Ruggiu, Fiorella": [
+        1
+      ],
+      "Fucini, Raymond V.": [
+        1
+      ],
+      "Sadowsky, Jack": [
+        1
+      ],
+      "Hansen, Stig K.": [
+        1
+      ],
+      "Haque, Imran S.": [
+        1
+      ]
+    },
+    "source_url": "https://arxiv.org/pdf/2610.41070v1",
+    "page": 1,
+    "pdf_sha256": "e7a3ca24f8c473e53cbffe30bf72389ad2b469efbb8f87064d946deeb1b7379c",
+    "evidence": "Visually verified first-page author block and explicit shared affiliation layout."
+  },
+  "2610.41245": {
+    "title": "MEMIG: Self-evolving Memory Construction for Antibody Optimization",
+    "authors": [
+      "Jang, Yunhui",
+      "Wang, Zach",
+      "Doshi, Jai",
+      "Chuang, Kangway",
+      "Lisanza, Sidney",
+      "Joren, Taylor"
+    ],
+    "affiliations": [
+      "KAIST",
+      "Genentech"
+    ],
+    "author_affiliations": {
+      "Jang, Yunhui": [
+        1
+      ],
+      "Wang, Zach": [
+        1
+      ],
+      "Doshi, Jai": [
+        2
+      ],
+      "Chuang, Kangway": [
+        2
+      ],
+      "Lisanza, Sidney": [
+        2
+      ],
+      "Joren, Taylor": [
+        2
+      ]
+    },
+    "source_url": "https://arxiv.org/pdf/2610.41245v1",
+    "page": 1,
+    "pdf_sha256": "8ed2939344a5b01ff06c1bc069a1541c6d7c7f601b8746af0120d4fb094f0d20",
+    "evidence": "Visually verified first-page numbered author affiliations. PDF spells Kangway Chauang; arXiv listing spells Kangway Chuang. Association verified for this paper only."
+  },
+  "2611.05260": {
+    "title": "NovoCRF: Globally Normalized De Novo Peptide Sequencing on a Prefix-Mass Lattice",
+    "authors": [
+      "Qiao, Rui",
+      "Xin, Lei",
+      "Shan, Baozhen"
+    ],
+    "affiliations": [
+      "Bioinformatics Solutions Inc."
+    ],
+    "author_affiliations": {
+      "Qiao, Rui": [
+        1
+      ],
+      "Xin, Lei": [
+        1
+      ],
+      "Shan, Baozhen": [
+        1
+      ]
+    },
+    "source_url": "https://arxiv.org/pdf/2611.05260v1",
+    "page": 1,
+    "pdf_sha256": "621028eb604572a2346094ee5c8b2aa90d483c2655f7746c7147e162d25f7182",
+    "evidence": "Visually verified first-page author block and explicit shared affiliation layout."
+  }
+}

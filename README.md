@@ -55,10 +55,18 @@ Codex 使用你自己的账户和可用额度，不提供免费或无限模型�
 
 在“设置”（`⌘,`）选择来源和每天篇数，保存后在下次更新生效。更新源码后运行 `sh build.sh` 重新构建。文献来源可能延迟或暂时不可用，题录不保证包含摘要或可获取全文；推荐排序需要本机 Zotero 摘要作为兴趣参考。界面支持双语，但不会自动把已有单语报告补译。
 
+### 目录结构
+
+- `src/`：Python 后端和 SwiftUI 界面源码。
+- `tests/`：自动化测试。
+- `scripts/`：安装配置、检查和发布辅助工具。
+- `docs/`、`skills/`：使用说明和论文阅读技能。
+- `cache/`：本机运行数据，不提交。
+
 ### 开发与隐私
 
 ```sh
-python3 -m unittest discover -q
+sh test.sh
 python3 scripts/make_release.py
 ```
 
@@ -119,10 +127,18 @@ Codex uses your own account and available usage allowance; access to a model dep
 
 Open Settings with `⌘,`. Source and daily-limit changes take effect on the next update. After changing source code, run `sh build.sh` to rebuild. Sources may be delayed or unavailable; metadata does not guarantee an abstract or accessible full text. Relevance ranking currently requires abstracts in a local Zotero library. Existing monolingual reports are not automatically translated.
 
+### Repository layout
+
+- `src/`: Python backend and SwiftUI application source.
+- `tests/`: automated tests.
+- `scripts/`: configuration, diagnostics, and release helpers.
+- `docs/` and `skills/`: documentation and paper-reading skill.
+- `cache/`: local runtime data, excluded from Git.
+
 ### Development and privacy
 
 ```sh
-python3 -m unittest discover -q
+sh test.sh
 python3 scripts/make_release.py
 ```
 

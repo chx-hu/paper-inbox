@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 from urllib.parse import quote
 import reading_dispatch
 import app_settings
-BASE=Path(__file__).resolve().parent
+BASE=Path(__file__).resolve().parents[1]
 CACHE=BASE/'cache'; CACHE.mkdir(exist_ok=True)
 DB=CACHE/'inbox.sqlite'
 TZ=dt.timezone(dt.timedelta(hours=8))
@@ -56,11 +56,13 @@ def fetch_json(url):
  with urlopen(Request(url,headers={'User-Agent':'PaperInbox/0.1 (personal literature reader)'}),timeout=18) as r:return json.load(r)
 
 def enrich(p):
+ original=dict(p)
  p=dict(p)
  if 'arxiv.org/abs/' in p.get('url',''):
   from arxiv_metadata import enrich_arxiv
   from arxiv_pdf_metadata import enrich_pdf
-  return enrich_pdf(enrich_arxiv(p))
+  from author_affiliations import apply_reviewed_associations
+  return apply_reviewed_associations(enrich_pdf(enrich_arxiv(p)))
  try:
   doi=p['url'].split('doi.org/')[-1] if 'doi.org/' in p['url'] else re.sub(r'v\d+$','',p['url'].split('/content/')[-1]) if 'biorxiv.org/content/' in p['url'] else ''
   if doi.startswith('10.'):
@@ -79,7 +81,12 @@ def enrich(p):
   if 'arxiv.org/abs/' in p['url']:p['pdf_url']=p['url'].replace('/abs/','/pdf/')
  except Exception:
   p['metadata_note']='部分作者、单位或日期未获取'
- return p
+ from publisher_metadata import enrich_publisher
+ result=enrich_publisher(p)
+ if result.get('author_metadata_error') and original.get('author_metadata_schema'):
+  for key in ('authors','affiliations','author_affiliations','author_metadata_url','author_metadata_schema','author_metadata_version_url'):
+   if key in original:result[key]=original[key]
+ return result
 
 def validate_summary(value):
  if value.strip()=='原摘要未获取':return
@@ -123,7 +130,7 @@ def ingest(path):
   with connect() as c:old=c.execute('SELECT data FROM papers WHERE id=?',(p['id'],)).fetchone()
   if old:
    prev=json.loads(old['data'])
-   for key in ('published','authors','affiliations','author_affiliations','doi','pdf_url','journal','metadata_sources'):
+   for key in ('published','authors','affiliations','author_affiliations','doi','pdf_url','journal','metadata_sources','author_metadata_schema','author_metadata_url','author_metadata_version_url'):
     if prev.get(key) and not p.get(key):p[key]=prev[key]
    if prev.get('summary_style')=='pmr_v3' and prev.get('summary_source_hash')==hashlib.sha256(p.get('abstract','').encode()).hexdigest():
     for key in ('summary','summary_style','summary_source_hash'):p[key]=prev[key]
@@ -156,7 +163,7 @@ def run_update():
   path=app_settings.candidate_path(CACHE/'runs',today(),app_settings.load_config())
   if not path.exists():
    # App gets a calendar-day snapshot even on first login before 06:00.
-   runner=BASE/'retrieve_today.py'
+   runner=BASE/'src'/'retrieve_today.py'
    with (CACHE/'retrieval.log').open('w') as log:
     env=os.environ.copy()
     from fulltext import load_config
@@ -268,6 +275,31 @@ class Handler(BaseHTTPRequestHandler):
    self.reply(snapshot())
   except Exception as e:self.reply({'error':str(e)},400)
 
+def metadata_maintenance():
+ from publisher_metadata import SCHEMA, publisher_url
+ fields=('authors','affiliations','author_affiliations','doi','journal','author_metadata_schema',
+         'author_metadata_url','author_metadata_version_url','author_metadata_error','metadata_note')
+ while True:
+  try:
+   with connect() as c: rows=c.execute('SELECT id,data FROM papers').fetchall()
+   for row in rows:
+    p=json.loads(row['data'])
+    if 'arxiv.org/' in p.get('url',''):continue
+    needs_publisher=publisher_url(p) and (p.get('author_metadata_schema')!=SCHEMA or p.get('author_metadata_version_url')!=p.get('url') or len(p.get('author_affiliations',{})) < len(p.get('authors',[])))
+    if not needs_publisher and p.get('authors') and p.get('affiliations'):continue
+    updated=enrich(p)
+    with connect() as c:
+     latest=c.execute('SELECT data FROM papers WHERE id=?',(row['id'],)).fetchone()
+     if latest:
+      merged=json.loads(latest['data'])
+      for key in fields:
+       if key in updated:merged[key]=updated[key]
+      c.execute('UPDATE papers SET data=? WHERE id=?',(json.dumps(merged,ensure_ascii=False),row['id']))
+    time.sleep(2)
+  except Exception:
+   pass  # Retry next cycle; never interfere with reading tasks or daily ingestion.
+  time.sleep(6*60*60)
+
 def main():
  lock=(CACHE/'server.lock').open('w')
  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -278,5 +310,6 @@ def main():
  caches=sorted((CACHE/'runs').glob('*/*/*/'+app_settings.candidate_filename(app_settings.load_config())))
  threading.Thread(target=bootstrap,args=(caches[-1] if caches else None,),daemon=True).start()
  threading.Thread(target=reading_scheduler,daemon=True).start()
+ threading.Thread(target=metadata_maintenance,daemon=True).start()
  server.serve_forever()
 if __name__=='__main__':main()

@@ -19,7 +19,7 @@ DB = Path.home() / 'Zotero/zotero.sqlite'
 BASE = 'http://127.0.0.1:23119'
 COLLECTION = 'AI 文献收藏'
 LOCK = threading.Lock()
-SESSION_FILE = Path(__file__).resolve().parent / 'cache' / 'zotero_sessions.json'
+SESSION_FILE = Path(__file__).resolve().parents[1] / 'cache' / 'zotero_sessions.json'
 AUTH_FILE = SESSION_FILE.with_name('zotero_local_auth.json')
 LOCAL = build_opener(ProxyHandler({}))
 

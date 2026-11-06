@@ -23,7 +23,7 @@ import threading
 import time
 from urllib.parse import unquote
 
-BASE = Path(__file__).resolve().parent
+BASE = Path(__file__).resolve().parents[1]
 QUEUE_DIR = BASE / 'cache' / 'codex_reading_v4'
 LEGACY_QUEUE_DIR = BASE / 'cache' / 'codex_reading_v3'
 INBOX_DB = BASE / 'cache' / 'inbox.sqlite'
@@ -127,6 +127,7 @@ def completion_instructions(paper):
             'method_evidence 为含 quote（包含名称的原文短引文）、locator、source_url 的对象或 null。'
             '正文阅读完成即可，仅在理解正文主要发现确有需要时查阅对应 SI、附录或 Extended Data 内容，不要求完整覆盖补充材料。'
             '另写 motivation 和 take_home_message 两个简短字符串，前者用1至2句说明研究动机，后者用2至3句概括主要发现，仅保留理解结论必需的条件。'
+            '摘要字段仅写纯文本句子，不使用 Markdown 加粗、标题、列表或代码围栏。'
             '同时提供 motivation_zh、motivation_en、take_home_message_zh、take_home_message_en 四个字符串，中英内容对应；原字段保留中文。每种语言分别遵守上述句数限制，须来自实际全文阅读并与报告一致。'
             '无命名方法时不编造名称。派发器负责改名和 Zotero 入库，不自行操作这两项或 Codex 数据库。')
 

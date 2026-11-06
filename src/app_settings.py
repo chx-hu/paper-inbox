@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 
-SOURCES_FILE = Path(__file__).resolve().parent / 'sources.json'
+SOURCES_FILE = Path(__file__).resolve().parents[1] / 'sources.json'
 SOURCE_NAMES = ('arXiv', 'bioRxiv', 'Journals')
 JOURNAL_CATALOG = (
     ('nature', 'Nature'),

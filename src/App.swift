@@ -366,7 +366,7 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
         guard Date().timeIntervalSince(lastLaunchAttempt) >= 30 else { return }
         guard process?.isRunning != true else { return }
         lastLaunchAttempt = Date()
-        let backend = root.appendingPathComponent("server.py")
+        let backend = root.appendingPathComponent("src/server.py")
         guard FileManager.default.fileExists(atPath: backend.path) else { error = L("未找到本地服务，请使用启动脚本打开应用。"); return }
         do {
             let cache = root.appendingPathComponent("cache")
@@ -725,13 +725,13 @@ struct InboxView: View {
             if let motivation = reading.localizedMotivation(model.appSettings.language), !motivation.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Motivation").font(.system(size: 12, weight: .semibold))
-                    Text(motivation).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled)
+                    Text((try? AttributedString(markdown: motivation, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(motivation)).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled)
                 }
             }
             if let takeHome = reading.localizedTakeHome(model.appSettings.language), !takeHome.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Take-home message").font(.system(size: 12, weight: .semibold))
-                    Text(takeHome).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled)
+                    Text((try? AttributedString(markdown: takeHome, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(takeHome)).font(.system(size: 13)).lineSpacing(5).textSelection(.enabled)
                 }
             }
             if let url = reading.threadURL {

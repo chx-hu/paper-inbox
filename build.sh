@@ -6,7 +6,7 @@ APP="$ROOT/Paper Inbox.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$ROOT/cache/swift-module-cache"
 swift -module-cache-path "$ROOT/cache/swift-module-cache" "$ROOT/assets/make-icons.swift" "$ROOT"
 iconutil -c icns "$ROOT/cache/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
-swiftc -swift-version 5 -parse-as-library -O -module-cache-path "$ROOT/cache/swift-module-cache" -framework SwiftUI -framework AppKit "$ROOT/App.swift" -o "$APP/Contents/MacOS/PaperInbox"
+swiftc -swift-version 5 -parse-as-library -O -module-cache-path "$ROOT/cache/swift-module-cache" -framework SwiftUI -framework AppKit "$ROOT/src/App.swift" -o "$APP/Contents/MacOS/PaperInbox"
 /usr/bin/python3 - "$APP/Contents/Info.plist" "$ROOT" <<'PY'
 import plistlib,sys
 with open(sys.argv[1], 'wb') as f:

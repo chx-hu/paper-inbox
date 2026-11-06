@@ -1,8 +1,8 @@
 """Reuse the read-only Zotero retrieval with a calendar-day morning reference."""
 import datetime as dt, sys
 from pathlib import Path
-base=Path(__file__).resolve().parent
-sys.path.insert(0,str(base))
+base=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(base/'src'))
 import collector as daily
 import json
 config=json.loads((base/'sources.json').read_text());daily.setup(config)
