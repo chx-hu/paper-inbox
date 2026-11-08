@@ -12,7 +12,7 @@
 - 显示标题、作者及有依据的单位对应、来源、日期、相关性和中文摘要。支持未读、已读及收藏；文字可直接选中复制。列表顶部的勾选按钮可一键将当前列表（含搜索筛选）中的未读论文标为已读，不改变收藏或 Zotero。
 - 设置中切换中文／English、选择期刊、分类、精读模型和推理强度。
 - 收藏触发 Codex 精读，多篇任务可以并行。报告包含问题、动机、方法、结果、正文图解读及 take-home message；SI 按需阅读。
-- 新精读的 Motivation 与 Take-home message 保存中英两版，随界面语言显示；普通论文摘要目前以中文为主。
+- 新精读的 Motivation 与 Take-home message 保存中英两版，随界面语言显示；普通论文摘要也保存中英两版，问题／方法／结果随界面语言切换。
 - 精读完成后保存至 Zotero 的“AI 文献收藏”。**取消收藏会将对应文库条目移入 Zotero 回收站，不只是移出分类**；重新收藏恢复原条目。不会清空回收站，阅读报告保留。
 - 登录电脑后自动启动，按日检查更新；电脑需要已登录且联网。
 
@@ -53,7 +53,7 @@ Codex 使用你自己的账户和可用额度，不提供免费或无限模型�
 
 ### 使用与限制
 
-在“设置”（`⌘,`）选择来源和每天篇数，保存后在下次更新生效。更新源码后运行 `sh build.sh` 重新构建。文献来源可能延迟或暂时不可用，题录不保证包含摘要或可获取全文；推荐排序需要本机 Zotero 摘要作为兴趣参考。界面支持双语，但不会自动把已有单语报告补译。
+在“设置”（`⌘,`）选择来源和每天篇数，保存后在下次更新生效。更新源码后运行 `sh build.sh` 重新构建。文献来源可能延迟或暂时不可用，题录不保证包含摘要或可获取全文；推荐排序需要本机 Zotero 摘要作为兴趣参考。界面和简要摘要支持双语；已有完整精读报告不会自动全文补译。
 
 ### 目录结构
 
@@ -84,7 +84,7 @@ A macOS inbox for research papers. Discover papers daily, rank them against your
 - View titles, authors, supported author–affiliation links, sources, dates, relevance scores, and Chinese summaries. Track unread, read, and favorite papers; select text to copy it. The checkmark button above the list marks its unread papers as read, respecting the current search and filter without changing favorites or Zotero.
 - Switch the interface between Chinese and English. Configure sources, categories, journals, reading models, and reasoning effort in Settings.
 - Favoriting starts a Codex reading task; multiple tasks can run concurrently. Reports cover the problem, motivation, methods, results, main figures, and take-home message. Supplementary material is consulted when needed.
-- New reading tasks return Motivation and Take-home message in both Chinese and English, displayed in the selected interface language. Regular paper summaries remain primarily Chinese.
+- New reading tasks return Motivation and Take-home message in both Chinese and English, displayed in the selected interface language. Regular paper summaries are also stored in Chinese and English, with Problem / Methods / Results and the summary text following the interface language.
 - Completed readings save the paper to Zotero’s “AI 文献收藏” collection. **Unfavoriting moves the corresponding library item to Zotero Trash, rather than merely removing collection membership.** Refavoriting restores the same item. Trash is never emptied, and reading reports are retained.
 - Optional login startup enables daily update checks while the computer is logged in and online.
 
@@ -125,7 +125,7 @@ Codex uses your own account and available usage allowance; access to a model dep
 
 ### Usage and limitations
 
-Open Settings with `⌘,`. Source and daily-limit changes take effect on the next update. After changing source code, run `sh build.sh` to rebuild. Sources may be delayed or unavailable; metadata does not guarantee an abstract or accessible full text. Relevance ranking currently requires abstracts in a local Zotero library. Existing monolingual reports are not automatically translated.
+Open Settings with `⌘,`. Source and daily-limit changes take effect on the next update. After changing source code, run `sh build.sh` to rebuild. Sources may be delayed or unavailable; metadata does not guarantee an abstract or accessible full text. Relevance ranking currently requires abstracts in a local Zotero library. Existing full-length monolingual reading reports are not automatically translated.
 
 ### Repository layout
 

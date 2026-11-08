@@ -109,6 +109,8 @@ struct Paper: Identifiable, Decodable {
     let journal: String
     let score: Double?
     let summary: String
+    let summary_zh: String
+    let summary_en: String
     let abstract: String
     let authors: [String]
     let affiliations: [String]
@@ -117,7 +119,7 @@ struct Paper: Identifiable, Decodable {
     let read: Bool
     let favorite: Bool
     let reading: ReadingTask?
-    enum CodingKeys: String, CodingKey { case id, title, url, source, journal, score, summary, abstract, authors, affiliations, published, read, favorite, reading, author_affiliations }
+    enum CodingKeys: String, CodingKey { case id, title, url, source, journal, score, summary, summary_zh, summary_en, abstract, authors, affiliations, published, read, favorite, reading, author_affiliations }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         func string(_ key: CodingKeys) -> String { (try? c.decode(String.self, forKey: key)) ?? "" }
@@ -126,7 +128,7 @@ struct Paper: Identifiable, Decodable {
             let text = string(key); return text.isEmpty ? [] : [text]
         }
         id = string(.id); title = string(.title); url = string(.url); source = string(.source); journal = string(.journal)
-        abstract = string(.abstract); summary = string(.summary); authors = array(.authors); affiliations = array(.affiliations)
+        abstract = string(.abstract); summary = string(.summary); summary_zh = string(.summary_zh); summary_en = string(.summary_en); authors = array(.authors); affiliations = array(.affiliations)
         author_affiliations = (try? c.decode([String: [Int]].self, forKey: .author_affiliations)) ?? [:]
         published = string(.published); score = try? c.decode(Double.self, forKey: .score)
         read = (try? c.decode(Bool.self, forKey: .read)) ?? false
@@ -175,6 +177,9 @@ extension Paper {
         }
     }
     var displayScore: String? { score.map { String(format: "%.1f", $0) } }
+    func localizedSummary(_ language: String) -> String {
+        language == "en" ? summary_en : (summary_zh.isEmpty ? summary : summary_zh)
+    }
     var displayPublished: String { published.isEmpty ? "日期未获取" : published }
 }
 
@@ -323,7 +328,7 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
     var visible: [Paper] {
         papers.filter { p in
             let matches = filter == "全部" || (filter == "未读" && !p.read) || (filter == "收藏" && p.favorite) || (filter == "已读" && p.read)
-            return matches && (searching.isEmpty || "\(p.title) \(p.summary) \(p.authors.joined(separator: " "))".localizedCaseInsensitiveContains(searching))
+            return matches && (searching.isEmpty || "\(p.title) \(p.summary) \(p.summary_en) \(p.authors.joined(separator: " "))".localizedCaseInsensitiveContains(searching))
         }
     }
     var selectedPaper: Paper? { papers.first { $0.id == selected } }
@@ -806,9 +811,10 @@ struct InboxView: View {
         for (index, line) in summary.components(separatedBy: "\n").enumerated() {
             if index > 0 { content.append(AttributedString("\n")) }
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let label = ["问题：", "方法：", "结果：", "问题:", "方法:", "结果:"].first { trimmed.hasPrefix($0) }
-            if let label {
-                let headingText = L(String(label.dropLast())) + (model.appSettings.language == "en" ? ": " : "：")
+            let labels = [("问题：", "问题"), ("方法：", "方法"), ("结果：", "结果"), ("问题:", "问题"), ("方法:", "方法"), ("结果:", "结果"), ("Problem:", "问题"), ("Methods:", "方法"), ("Method:", "方法"), ("Results:", "结果"), ("Result:", "结果")]
+            let matched = labels.first { trimmed.lowercased().hasPrefix($0.0.lowercased()) }
+            if let (label, key) = matched {
+                let headingText = L(key) + (model.appSettings.language == "en" ? ": " : "：")
                 var heading = AttributedString(headingText)
                 heading.font = .system(size: 14, weight: .semibold)
                 content.append(heading)
@@ -865,7 +871,7 @@ struct InboxView: View {
                         Divider()
                         VStack(alignment: .leading, spacing: 12) {
                             Text(L("摘要")).font(.system(size: 13, weight: .semibold))
-                            summaryText(p.summary)
+                            summaryText(p.localizedSummary(model.appSettings.language))
                                 .font(.system(size: 14))
                                 .lineSpacing(8)
                                 .fixedSize(horizontal: false, vertical: true)

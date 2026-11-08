@@ -100,9 +100,15 @@ def validate_summary(value):
   sentences=[x for x in re.split(r'[。！？!?]+',body) if x.strip()]
   if not 1<=len(sentences)<=3:raise ValueError('摘要每段需要1至3句')
 
+def complete_bilingual_summaries(papers,day):
+ from bilingual_summaries import ensure_bilingual
+ ensure_bilingual(papers,day,CACHE)
+
 def summarize(papers,day):
  missing=[{'id':p['id'],'title':p['title'],'abstract':p.get('abstract','')} for p in papers if not p.get('summary')]
- if not missing:return
+ if not missing:
+  complete_bilingual_summaries(papers,day)
+  return
  codex=app_settings.load_config().get('codex_binary') or shutil.which('codex') or 'codex'
  schema={'type':'object','properties':{'papers':{'type':'array','items':{'type':'object','properties':{'id':{'type':'string'},'summary':{'type':'string'}},'required':['id','summary'],'additionalProperties':False}}},'required':['papers'],'additionalProperties':False}
  sp=CACHE/'summary-schema.json';sp.write_text(json.dumps(schema));out=CACHE/(day+'-summaries.json')
@@ -118,6 +124,7 @@ def summarize(papers,day):
    p['summary']=values[p['id']]
    p['summary_style']='pmr_v3'
    p['summary_source_hash']=hashlib.sha256(p.get('abstract','').encode()).hexdigest()
+ complete_bilingual_summaries(papers,day)
 
 def failed_empty_snapshot(data):
  return not data.get('papers') and (data.get('status')=='partial' or bool(data.get('warnings')))
@@ -140,6 +147,8 @@ def ingest(path):
     if prev.get(key) and not p.get(key):p[key]=prev[key]
    if prev.get('summary_style')=='pmr_v3' and prev.get('summary_source_hash')==hashlib.sha256(p.get('abstract','').encode()).hexdigest():
     for key in ('summary','summary_style','summary_source_hash'):p[key]=prev[key]
+    for key in ('summary_zh','summary_en','summary_en_source_hash'):
+     if key in prev:p[key]=prev[key]
   papers.append(p)
  warnings=[re.sub(r'No direct journal papers retrieved for (.+)\. Continuing\.',r'\1：未取回结果，覆盖不完整。',w) for w in d.get('warnings',[])]
  warnings.append('UTC 检索窗口：'+' 至 '.join(d.get('target_dates_utc',[]))+'；两日窗口可能重复。')
