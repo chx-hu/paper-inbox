@@ -44,6 +44,11 @@ class BilingualSummaryTests(unittest.TestCase):
         with patch('bilingual_summaries.subprocess.run', side_effect=AssertionError('no model needed')):
             summaries.ensure_bilingual([paper],'2026-11-08',self.cache)
         self.assertEqual(paper['summary_en'],'Original abstract unavailable.')
+    def test_resource_urls_end_before_chinese_punctuation(self):
+        original='代码见https://example.org/code，网页见https://example.org/app/。'
+        english=ENGLISH+' Code: https://example.org/code ; web: https://example.org/app/ .'
+        summaries.validate_english(english,original)
+        self.assertEqual(summaries._urls(original),{'https://example.org/code','https://example.org/app/'})
     def test_paragraphs_language_sentence_count_and_urls(self):
         summaries.validate_english(ENGLISH,CHINESE)
         for invalid in [ENGLISH.replace('Problem:','问题：'),ENGLISH+'\n\nExtra: New findings.',ENGLISH.replace('Prediction accuracy improves.','One. Two. Three. Four.')]:
