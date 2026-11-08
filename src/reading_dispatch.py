@@ -123,7 +123,8 @@ def completion_instructions(paper):
     return ('Paper Inbox 后台完成信息：读完正文、Methods 和全部正文图及其 panel 后，将 JSON 单独写入 '
             + str(receipt_path) + '（按需创建目录），不要附在报告或最终答复中，报告以 Take-home message 结束。'
             '字段：full_text_read、all_main_panels_read 为实际完成布尔值；coverage 为正文图列表，'
-            '每项含 figure、panels 标签列表、complete；method_name 为作者明确提出的方法原名或 null；'
+            '每项含 figure、panels 标签列表、complete；无字母标签的整图允许 panels=[]，可用 regions_read 描述已读区域；'
+            'method_name 为作者明确提出的方法原名或 null；'
             'method_evidence 为含 quote（包含名称的原文短引文）、locator、source_url 的对象或 null。'
             '正文阅读完成即可，仅在理解正文主要发现确有需要时查阅对应 SI、附录或 Extended Data 内容，不要求完整覆盖补充材料。'
             '另写 motivation 和 take_home_message 两个简短字符串，前者用1至2句说明研究动机，后者用2至3句概括主要发现，仅保留理解结论必需的条件。'
@@ -312,9 +313,35 @@ def _receipt(text):
         return None
     if not isinstance(result.get('coverage'), list) or not result['coverage']:
         return None
-    if any(not isinstance(item, dict) or not item.get('figure') or not item.get('panels') or item.get('complete') is not True for item in result['coverage']):
+    if any(not isinstance(item, dict) or not item.get('figure')
+           or not isinstance(item.get('panels'), list)
+           or any(not isinstance(panel, str) or not panel.strip() for panel in item['panels'])
+           or item.get('complete') is not True for item in result['coverage']):
         return None
     return result
+
+
+def _load_receipt(job, report):
+    if not job.get('receipt_path'):
+        return _receipt(report)
+    try:
+        path = Path(job['receipt_path'])
+        if path.stat().st_size > 100000:
+            return None
+        return _receipt('```reading_receipt\n' + path.read_text(encoding='utf-8') + '\n```')
+    except (OSError, UnicodeError):
+        return None
+
+
+def _completion_ready(job):
+    """Reconcile a late/corrected receipt without submitting another model turn."""
+    if job.get('status') != 'incomplete' or not job.get('report_path'):
+        return False
+    try:
+        report = Path(job['report_path']).read_text(encoding='utf-8')
+    except (OSError, UnicodeError):
+        return False
+    return bool(report.strip() and _load_receipt(job, report))
 
 
 def _summary_text(value, sentence_limit, truncate=False):
@@ -368,16 +395,7 @@ def _finish(client, path, turn):
     report_path = QUEUE_DIR / (path.stem + '.md')
     report_path.write_text(report, encoding='utf-8')
     job_before = json.loads(path.read_text())
-    if job_before.get('receipt_path'):
-        try:
-            receipt_file = Path(job_before['receipt_path'])
-            raw_receipt = receipt_file.read_text(encoding='utf-8') if receipt_file.stat().st_size <= 100000 else ''
-            receipt = _receipt('```reading_receipt\n' + raw_receipt + '\n```')
-        except (OSError, UnicodeError):
-            receipt = None
-    else:
-        # Existing submitted jobs still use the previous inline receipt format.
-        receipt = _receipt(report)
+    receipt = _load_receipt(job_before, report)
     if not receipt:
         _update(path, status='incomplete', message='已有阅读结果，全文或逐图覆盖尚未确认', report_path=str(report_path))
         return
@@ -397,7 +415,13 @@ def _finish(client, path, turn):
         return
     if not isinstance(evidence, dict) or not all(isinstance(evidence.get(key), str) and evidence[key].strip() for key in ('quote', 'locator', 'source_url')):
         return
-    if method.casefold() not in evidence['quote'].casefold() or not evidence['source_url'].startswith(('https://', 'http://')):
+    source = evidence['source_url']
+    local_source = source.startswith('file://') and source in (
+        job['paper'].get('url'), job['paper'].get('pdf_url'))
+    if local_source:
+        from urllib.parse import urlsplit
+        local_source = Path(unquote(urlsplit(source).path)).is_file()
+    if method.casefold() not in evidence['quote'].casefold() or not (source.startswith(('https://', 'http://')) or local_source):
         return
     # Persist the supported name first so a failed rename can be retried safely.
     _update(path, method_name=method.strip(), method_evidence=evidence, rename_pending=True)
@@ -408,6 +432,11 @@ def _finish(client, path, turn):
 def _run_one(path, client):
     created_here = False
     job = json.loads(path.read_text())
+    if _completion_ready(job):
+        report = Path(job['report_path']).read_text(encoding='utf-8')
+        _finish(client, path, {'status': 'completed', 'items': [
+            {'type': 'agentMessage', 'text': report}]})
+        return
     if job.get('rename_pending') and job.get('thread_id'):
         client.rpc('thread/name/set', {'threadId': job['thread_id'], 'name': job['method_name']})
         _update(path, rename_pending=False)
@@ -575,7 +604,7 @@ def _trash_zotero(path, job, zotero):
 
 def _eligible(job):
     return (job['status'] == 'pending' or job['status'] in ACTIVE
-            or job.get('rename_pending') or _zotero_due(job))
+            or _completion_ready(job) or job.get('rename_pending') or _zotero_due(job))
 
 
 def _worker():
@@ -597,7 +626,7 @@ def _worker():
                         job = json.loads(path.read_text())
                         if _zotero_due(job):
                             _sync_zotero(path)
-                        if job['status'] == 'pending' or job['status'] in ACTIVE or job.get('rename_pending'):
+                        if job['status'] == 'pending' or job['status'] in ACTIVE or _completion_ready(job) or job.get('rename_pending'):
                             if client is None:
                                 client = AppServer(QUEUE_DIR / 'app-server.log')
                                 client.initialize()

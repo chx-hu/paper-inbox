@@ -302,6 +302,47 @@ class DispatchTests(unittest.TestCase):
             self.assertFalse(client.calls)
             self.assertNotIn('method_name', json.loads(self.path().read_text()))
 
+    def test_unlabelled_whole_figures_are_valid_complete_coverage(self):
+        reading.enqueue(self.paper)
+        reading._run_one(self.path(), FakeClient())
+        self.write_receipt(coverage=[{'figure': 'Figure 1', 'panels': [], 'complete': True}])
+        reading._finish(FakeClient(), self.path(), {'status': 'completed', 'items': [
+            {'type': 'agentMessage', 'text': self.clean_report()}]})
+        self.assertEqual(json.loads(self.path().read_text())['status'], 'completed')
+        for panels in (None, 'a', [''], [3]):
+            receipt = self.receipt(coverage=[{'figure': 'Figure 1', 'panels': panels, 'complete': True}])
+            self.assertIsNone(reading._receipt(receipt))
+        self.assertIsNone(reading._receipt(self.receipt(coverage=[
+            {'figure': 'Figure 1', 'panels': [], 'complete': False}])))
+
+    def test_late_receipt_recovers_saved_report_without_new_turn(self):
+        reading.enqueue(self.paper)
+        reading._run_one(self.path(), FakeClient())
+        reading._finish(FakeClient(), self.path(), {'status': 'completed', 'items': [
+            {'type': 'agentMessage', 'text': self.clean_report()}]})
+        job = json.loads(self.path().read_text())
+        self.assertEqual(job['status'], 'incomplete')
+        self.assertFalse(reading._eligible(job))
+        self.write_receipt()
+        self.assertTrue(reading._eligible(job))
+        client = FakeClient()
+        reading._run_one(self.path(), client)
+        self.assertEqual(json.loads(self.path().read_text())['status'], 'completed')
+        self.assertEqual([method for method, _ in client.calls], ['thread/name/set'])
+
+    def test_local_pdf_method_evidence_can_rename(self):
+        pdf = self.root / 'provided.pdf'
+        pdf.write_bytes(b'%PDF-1.7')
+        self.paper.update(url=pdf.as_uri(), pdf_url=pdf.as_uri())
+        reading.enqueue(self.paper)
+        reading._run_one(self.path(), FakeClient())
+        self.write_receipt(method_evidence={'quote': 'We introduce TestMethod.',
+            'locator': 'Abstract', 'source_url': pdf.as_uri()})
+        client = FakeClient()
+        reading._finish(client, self.path(), {'status': 'completed', 'items': [
+            {'type': 'agentMessage', 'text': self.clean_report()}]})
+        self.assertEqual(client.calls[-1][0], 'thread/name/set')
+
     def test_legacy_job_still_accepts_inline_receipt(self):
         reading.enqueue(self.paper)
         job = json.loads(self.path().read_text())

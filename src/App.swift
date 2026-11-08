@@ -187,6 +187,33 @@ extension Paper {
         language == "en" ? summary_en : (summary_zh.isEmpty ? summary : summary_zh)
     }
     var displayPublished: String { published.isEmpty ? "日期未获取" : published }
+    var publicationMonth: String {
+        let parts = published.prefix(7).split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0].count == 4, parts[1].count == 2,
+              let year = Int(parts[0]), year > 0, let month = Int(parts[1]), (1...12).contains(month) else { return "" }
+        return String(published.prefix(7))
+    }
+}
+
+struct PaperMonthSection: Identifiable {
+    let id: String
+    let papers: [Paper]
+
+    static func grouped(_ papers: [Paper]) -> [PaperMonthSection] {
+        let groups = Dictionary(grouping: papers, by: \.publicationMonth)
+        return groups.keys.sorted(by: >).map { PaperMonthSection(id: $0, papers: groups[$0] ?? []) }
+    }
+
+    func title(language: String) -> String {
+        guard !id.isEmpty else { return language == "en" ? "Date unavailable" : "日期未获取" }
+        let parts = id.split(separator: "-")
+        let year = Int(parts[0]) ?? 0
+        let month = Int(parts[1]) ?? 1
+        if language != "en" { return "\(year)年\(month)月" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        return "\(formatter.monthSymbols[month - 1]) \(year)"
+    }
 }
 
 struct RunStatus: Decodable {
@@ -369,6 +396,10 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
         }
     }
     var selectedPaper: Paper? { papers.first { $0.id == selected } }
+    var groupsByMonth: Bool { ["全部", "收藏", "已读"].contains(filter) }
+    var visibleSections: [PaperMonthSection] {
+        groupsByMonth ? PaperMonthSection.grouped(visible) : [PaperMonthSection(id: "", papers: visible)]
+    }
     func count(_ f: String) -> Int { papers.filter { f == "全部" || (f == "未读" && !$0.read) || (f == "收藏" && $0.favorite) || (f == "已读" && $0.read) }.count }
     func start() {
         Task { await refresh() }
@@ -798,8 +829,23 @@ struct InboxSettingsView: View {
 
 struct InboxView: View {
     @ObservedObject var model: InboxModel
+    @ViewState private var collapsedMonths: Set<String> = []
     func L(_ value: String) -> String { UIStrings.text(value, language: model.appSettings.language) }
     let accent = Color(red: 0.14, green: 0.38, blue: 0.34)
+    private func monthKey(_ month: PaperMonthSection) -> String { model.filter + ":" + month.id }
+    private func monthIsCollapsed(_ month: PaperMonthSection) -> Bool { collapsedMonths.contains(monthKey(month)) }
+    private func toggleMonth(_ month: PaperMonthSection) {
+        let key = monthKey(month)
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if collapsedMonths.contains(key) { collapsedMonths.remove(key) }
+            else { collapsedMonths.insert(key) }
+        }
+    }
+    private func monthAccessibilityLabel(_ month: PaperMonthSection) -> String {
+        let title = month.title(language: model.appSettings.language)
+        if model.appSettings.language == "en" { return (monthIsCollapsed(month) ? "Expand " : "Collapse ") + title }
+        return (monthIsCollapsed(month) ? "展开" : "收起") + title
+    }
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -845,15 +891,42 @@ struct InboxView: View {
                     Spacer()
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(model.visible) { paper in
-                                Button { model.selected = paper.id } label: {
-                                    paperRow(paper)
+                        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                            ForEach(model.visibleSections) { month in
+                                Section {
+                                    if !model.groupsByMonth || !monthIsCollapsed(month) {
+                                    ForEach(month.papers) { paper in
+                                        Button { model.selected = paper.id } label: {
+                                            paperRow(paper)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(InboxSurfaceStyle(selected: model.selected == paper.id, accent: accent))
+                                        .accessibilityValue(model.selected == paper.id ? L("已选中") : "")
+                                        Divider().padding(.leading, 20)
+                                    }
+                                    }
+                                } header: {
+                                    if model.groupsByMonth {
+                                        Button { toggleMonth(month) } label: {
+                                        HStack {
+                                            Image(systemName: monthIsCollapsed(month) ? "chevron.right" : "chevron.down")
+                                                .font(.system(size: 10, weight: .semibold)).frame(width: 10)
+                                            Text(month.title(language: model.appSettings.language))
+                                                .font(.system(size: 12, weight: .semibold))
+                                            Spacer()
+                                            Text("\(month.papers.count)")
+                                                .font(.system(size: 11, design: .monospaced))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .padding(.horizontal, 20).padding(.vertical, 10)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color(nsColor: .controlBackgroundColor))
                                         .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel(monthAccessibilityLabel(month))
+                                    }
                                 }
-                                .buttonStyle(InboxSurfaceStyle(selected: model.selected == paper.id, accent: accent))
-                                .accessibilityValue(model.selected == paper.id ? L("已选中") : "")
-                                Divider().padding(.leading, 20)
                             }
                         }
                     }
