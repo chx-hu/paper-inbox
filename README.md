@@ -51,6 +51,12 @@ sh authorize-zotero.sh
 
 Codex 使用你自己的账户和可用额度，不提供免费或无限模型调用；模型是否可用取决于账户权限。建议安装 Codex 桌面应用以打开精读任务。应用不依赖 GitHub Actions，不发送邮件。
 
+### 摘要 API 设置
+
+在设置的“摘要生成”中选择 OpenAI API，选择模型 ID 和推理强度，在安全输入框填写新密钥后保存。密钥由应用直接存入 macOS 钥匙串，不进入配置文件、日志或仓库；留空会保留已有密钥。不要在聊天、Issue 或 README 中粘贴真实密钥。已有有效摘要会复用，新摘要生成中英两版。
+
+“收藏精读”的模型和推理强度单独配置，继续使用 Codex 账户。API 可用模型及额度取决于你的 API 项目。API 请求固定发送至 OpenAI 官方 Responses 接口；不支持把密钥转发到任意第三方地址。
+
 ### 使用与限制
 
 在“设置”（`⌘,`）选择来源和每天篇数，保存后在下次更新生效。更新源码后运行 `sh build.sh` 重新构建。文献来源可能延迟或暂时不可用，题录不保证包含摘要或可获取全文；推荐排序需要本机 Zotero 摘要作为兴趣参考。界面和简要摘要支持双语；已有完整精读报告不会自动全文补译。
@@ -122,6 +128,12 @@ sh authorize-zotero.sh
 Keep Zotero open and choose **Always Allow** in its authorization dialog. If macOS requests access to the selected folders, allow the app or terminal you are using. Run `sh doctor.sh --offline` to diagnose local configuration; it does not test remote paper services.
 
 Codex uses your own account and available usage allowance; access to a model depends on your account. Installing the Codex desktop app is recommended for opening reading tasks. The app does not depend on GitHub Actions and sends no email.
+
+### Summary API settings
+
+In Settings → Summaries, select OpenAI API, choose a model ID and reasoning effort, and save a new key in the secure field. The app stores it directly in macOS Keychain, not configuration files, logs, or the repository. Leaving the field blank preserves the current key. Never paste real keys into chats, issues, or README files. Existing valid summaries are reused; new summaries are generated in both languages.
+
+Favorite reading keeps its own Codex model and reasoning settings. API model access and usage allowance depend on your API project. Requests use the official OpenAI Responses endpoint; keys are never forwarded to configurable third-party endpoints.
 
 ### Usage and limitations
 

@@ -2,12 +2,17 @@ import AppKit
 import SwiftUI
 import Foundation
 import Combine
+import Security
 
 // Disambiguate the property wrapper from the newer SDK State macro.
 typealias ViewState<Value> = SwiftUI.State<Value>
 
 enum UIStrings {
     static let english: [String: String] = [
+        "摘要生成": "Summaries", "摘要服务": "Provider", "API 密钥": "API key",
+        "已保存到钥匙串": "Saved in Keychain", "未配置密钥": "No API key configured",
+        "留空保留现有密钥": "Leave blank to keep the current key",
+        "密钥保存失败，请解锁钥匙串后重试。": "Could not save the key. Unlock Keychain and try again.",
         "全部已读": "Read all",
         "问题": "Problem", "方法": "Methods", "结果": "Results",
         "更新完成": "Update complete",
@@ -204,7 +209,7 @@ struct ReadingSettings: Decodable, Equatable {
     var model: String = "gpt-6-astra"
     var effort: String = "high"
     static let models = ["gpt-6-astra", "gpt-6.1-sol"]
-    static func modelName(_ model: String) -> String { model == "gpt-6.1-sol" ? "Sol" : "Astra" }
+    static func modelName(_ model: String) -> String { model }
     static let efforts = ["low", "medium", "high", "xhigh", "max", "ultra"]
     static func defaultEffort(for model: String) -> String { model == "gpt-6.1-sol" ? "medium" : "high" }
 }
@@ -214,7 +219,6 @@ struct JournalOption: Decodable, Identifiable {
     static let defaults: [JournalOption] = [
         JournalOption(id: "nature", name: "Nature"),
         JournalOption(id: "science", name: "Science"),
-        JournalOption(id: "cell", name: "Cell"),
         JournalOption(id: "nature_biotechnology", name: "Nature Biotechnology"),
         JournalOption(id: "nature_methods", name: "Nature Methods"),
         JournalOption(id: "nature_chemical_biology", name: "Nature Chemical Biology"),
@@ -222,14 +226,43 @@ struct JournalOption: Decodable, Identifiable {
         JournalOption(id: "nature_machine_intelligence", name: "Nature Machine Intelligence"),
         JournalOption(id: "nature_computational_science", name: "Nature Computational Science"),
         JournalOption(id: "science_advances", name: "Science Advances"),
-        JournalOption(id: "cell_systems", name: "Cell Systems"),
         JournalOption(id: "bioinformatics", name: "Bioinformatics"),
         JournalOption(id: "briefings_in_bioinformatics", name: "Briefings in Bioinformatics"),
         JournalOption(id: "nucleic_acids_research", name: "Nucleic Acids Research"),
         JournalOption(id: "nature_communications", name: "Nature Communications")
     ]
 }
+enum SummaryKeychain {
+    static let service = "org.paperinbox.openai"
+    static var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "default"] }
+    static func configured() -> Bool {
+        var q = query; q[kSecReturnAttributes as String] = true
+        q[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        return SecItemCopyMatching(q as CFDictionary, nil) == errSecSuccess
+    }
+    static func save(_ value: String) throws {
+        let key = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return }
+        let data = Data(key.utf8)
+        var status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            var q = query; q[kSecValueData as String] = data
+            q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(q as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { throw NSError(domain: "PaperInboxKeychain", code: Int(status)) }
+    }
+}
 struct AppSettings: Decodable, Equatable {
+    var summary_provider = "codex"
+    var summary_model = "gpt-5.4-mini"
+    var summary_effort = "none"
+    static let summaryModels = ["gpt-5.4-mini", "gpt-6-luna", "gpt-6.1-sol", "gpt-6-astra"]
+    static func summaryEfforts(_ model: String) -> [String] {
+        if model == "gpt-5.4-mini" { return ["none", "low", "medium", "high", "xhigh"] }
+        if model == "gpt-6-astra" || model == "gpt-6.1-sol" { return ["low", "medium", "high", "xhigh", "max"] }
+        return ["none", "low", "medium", "high", "xhigh", "max"]
+    }
     var daily_limit: Int = 10
     var arxiv_query: String = "cs.AI+cs.LG+q-bio.BM"
     var biorxiv_query: String = "bioinformatics+biophysics"
@@ -238,10 +271,13 @@ struct AppSettings: Decodable, Equatable {
     var language: String = "zh-Hans"
     var enabled_sources: [String] = ["arXiv", "bioRxiv", "Journals"]
     static let sources = ["arXiv", "bioRxiv", "Journals"]
-    enum CodingKeys: String, CodingKey { case daily_limit, arxiv_query, biorxiv_query, journal_group, journals, language, enabled_sources }
+    enum CodingKeys: String, CodingKey { case daily_limit, arxiv_query, biorxiv_query, journal_group, journals, language, enabled_sources, summary_provider, summary_model, summary_effort }
     init() {}
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        summary_provider = (try? c.decode(String.self, forKey: .summary_provider)) ?? "codex"
+        summary_model = (try? c.decode(String.self, forKey: .summary_model)) ?? "gpt-5.4-mini"
+        summary_effort = (try? c.decode(String.self, forKey: .summary_effort)) ?? "none"
         daily_limit = (try? c.decode(Int.self, forKey: .daily_limit)) ?? 10
         arxiv_query = (try? c.decode(String.self, forKey: .arxiv_query)) ?? "cs.AI+cs.LG+q-bio.BM"
         biorxiv_query = (try? c.decode(String.self, forKey: .biorxiv_query)) ?? "bioinformatics+biophysics"
@@ -251,7 +287,7 @@ struct AppSettings: Decodable, Equatable {
         enabled_sources = (try? c.decode([String].self, forKey: .enabled_sources)) ?? Self.sources
     }
     var payload: [String: Any] {
-        ["daily_limit": daily_limit, "arxiv_query": arxiv_query, "biorxiv_query": biorxiv_query,
+        ["summary_provider": summary_provider,"summary_model": summary_model,"summary_effort": summary_effort,"daily_limit": daily_limit, "arxiv_query": arxiv_query, "biorxiv_query": biorxiv_query,
          "journal_group": journal_group, "journals": journals, "language": language, "enabled_sources": enabled_sources]
     }
 }
@@ -530,6 +566,8 @@ struct InboxSettingsView: View {
     @ViewState private var app: AppSettings
     @ViewState private var reading: ReadingSettings
     @ViewState private var choosingJournals = false
+    @ViewState private var apiKey = ""
+    @ViewState private var keyConfigured = SummaryKeychain.configured()
     func L(_ value: String) -> String { UIStrings.text(value, language: app.language) }
     init(model: InboxModel) {
         self.model = model
@@ -537,7 +575,9 @@ struct InboxSettingsView: View {
         _reading = ViewState(initialValue: model.readingSettings)
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
             Text(L("设置")).font(.system(size: 22, weight: .semibold))
             GroupBox(L("语言")) {
                 Picker(L("语言"), selection: $app.language) {
@@ -545,6 +585,27 @@ struct InboxSettingsView: View {
                     Text("English").tag("en")
                 }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }.frame(maxWidth: .infinity, alignment: .leading)
+            GroupBox(L("摘要生成")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Picker(L("摘要服务"), selection: $app.summary_provider) {
+                        Text("Codex").tag("codex")
+                        Text("OpenAI API").tag("openai")
+                    }
+                    if app.summary_provider == "openai" {
+                        Picker(L("模型"), selection: Binding(get: { app.summary_model }, set: { value in
+                            app.summary_model = value
+                            if !AppSettings.summaryEfforts(value).contains(app.summary_effort) { app.summary_effort = "medium" }
+                        })) {
+                            ForEach(AppSettings.summaryModels, id: \.self) { Text($0).tag($0) }
+                        }
+                        Picker(L("推理强度"), selection: $app.summary_effort) {
+                            ForEach(AppSettings.summaryEfforts(app.summary_model), id: \.self) { Text($0).tag($0) }
+                        }
+                        SecureField(L("API 密钥") + " · " + L("留空保留现有密钥"), text: $apiKey).textFieldStyle(.roundedBorder)
+                        Text(L(keyConfigured ? "已保存到钥匙串" : "未配置密钥")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+            }
             GroupBox(L("收藏精读")) {
                 VStack(spacing: 12) {
                     Picker(L("模型"), selection: Binding(
@@ -621,15 +682,23 @@ struct InboxSettingsView: View {
             if !model.settingsError.isEmpty {
                 Text(L(model.settingsError)).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
+                }.padding(26)
+            }.frame(maxHeight: 650)
+            Divider()
             HStack {
                 if model.savingSettings { ProgressView().controlSize(.small) }
                 Spacer()
                 Button(L("关闭")) { dismiss() }.keyboardShortcut(.cancelAction)
-                Button(L("保存")) { Task { await model.saveSettings(app: app, reading: reading) } }
+                Button(L("保存")) { Task {
+                    do {
+                        if !apiKey.isEmpty { try SummaryKeychain.save(apiKey); apiKey = ""; keyConfigured = true }
+                        await model.saveSettings(app: app, reading: reading)
+                    } catch { model.settingsError = L("密钥保存失败，请解锁钥匙串后重试。") }
+                } }
                     .keyboardShortcut(.defaultAction)
                     .disabled(app.enabled_sources.isEmpty || (app.enabled_sources.contains("Journals") && app.journals.isEmpty))
-            }
-        }.padding(26).frame(width: 560).disabled(model.savingSettings)
+            }.padding(.horizontal, 26).padding(.vertical, 16)
+        }.frame(width: 600).disabled(model.savingSettings)
             .interactiveDismissDisabled(model.savingSettings)
             .sheet(isPresented: $choosingJournals) {
                 VStack(alignment: .leading, spacing: 16) {

@@ -121,6 +121,14 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT favorite FROM papers WHERE id="old"').fetchone()[0], 1)
             self.assertEqual(conn.execute('SELECT count(*) FROM papers').fetchone()[0], 3)
 
+    def test_summary_provider_preserves_retrieval_cache_and_validates_effort(self):
+        original=dict(app_settings.DEFAULTS)
+        chosen=dict(original,summary_provider='openai',summary_model='gpt-6.1-sol',summary_effort='medium')
+        self.assertEqual(app_settings.retrieval_fingerprint(original),app_settings.retrieval_fingerprint(chosen))
+        self.assertEqual(app_settings.validate(chosen)['summary_provider'],'openai')
+        with self.assertRaises(ValueError):app_settings.validate(dict(chosen,summary_effort='none'))
+        with self.assertRaises(ValueError):app_settings.validate(dict(chosen,summary_effort='ultra'))
+
     def test_settings_fingerprint_keeps_default_and_changed_caches_separate(self):
         original = dict(self.infrastructure, **app_settings.DEFAULTS)
         changed = dict(original, arxiv_query='q-bio.QM', daily_limit=20)

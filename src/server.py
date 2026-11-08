@@ -105,6 +105,11 @@ def complete_bilingual_summaries(papers,day):
  ensure_bilingual(papers,day,CACHE)
 
 def summarize(papers,day):
+ settings=app_settings.get_settings()
+ if settings.get('summary_provider')=='openai':
+  from summary_api import ensure_summaries
+  ensure_summaries(papers,day,CACHE,settings['summary_model'],settings['summary_effort'])
+  return
  missing=[{'id':p['id'],'title':p['title'],'abstract':p.get('abstract','')} for p in papers if not p.get('summary')]
  if not missing:
   complete_bilingual_summaries(papers,day)

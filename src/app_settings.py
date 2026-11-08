@@ -103,11 +103,12 @@ JOURNAL_GROUPS = {'xx': ['nature',
 DEFAULTS = {'daily_limit': 10, 'arxiv_query': 'cs.AI+cs.LG+q-bio.BM',
             'biorxiv_query': 'bioinformatics+biophysics', 'journal_group': 'xx',
             'enabled_sources': list(SOURCE_NAMES), 'language': 'zh-Hans',
-            'journals': list(JOURNAL_GROUPS['xx'])}
+            'journals': list(JOURNAL_GROUPS['xx']), 'summary_provider':'codex',
+            'summary_model':'gpt-5.4-mini','summary_effort':'none'}
 
 
 def validate(value):
-    required = set(DEFAULTS) - {'language', 'journals'}
+    required = set(DEFAULTS) - {'language', 'journals','summary_provider','summary_model','summary_effort'}
     if not isinstance(value, dict) or not required <= set(value) or set(value) - set(DEFAULTS):
         raise ValueError('请提供完整的文献检索设置')
     limit = value['daily_limit']
@@ -130,6 +131,16 @@ def validate(value):
     if language not in ('zh-Hans', 'en'):
         raise ValueError('请选择中文或 English')
     result['language'] = language
+    provider=value.get('summary_provider','codex')
+    model=value.get('summary_model','gpt-5.4-mini')
+    effort=value.get('summary_effort','none')
+    models={'gpt-5.4-mini':('none','low','medium','high','xhigh'),
+            'gpt-6-luna':('none','low','medium','high','xhigh','max'),
+            'gpt-6.1-sol':('low','medium','high','xhigh','max'),
+            'gpt-6-astra':('low','medium','high','xhigh','max')}
+    if provider not in ('codex','openai') or model not in models or effort not in models[model]:
+        raise ValueError('请选择有效的摘要模型与推理强度')
+    result.update(summary_provider=provider,summary_model=model,summary_effort=effort)
     journals = value.get('journals', JOURNAL_GROUPS.get(result['journal_group'], JOURNAL_GROUPS['all']))
     known = {key for key, name in JOURNAL_CATALOG}
     if (not isinstance(journals, list) or any(not isinstance(key, str) or key not in known for key in journals)
@@ -185,7 +196,7 @@ def retrieval_fingerprint(config):
 
 
 def _retrieval_settings(config):
-    return {key: value for key, value in from_config(config).items() if key not in ('language', 'journal_group')}
+    return {key: value for key, value in from_config(config).items() if key not in ('language', 'journal_group','summary_provider','summary_model','summary_effort')}
 
 
 def candidate_filename(config):

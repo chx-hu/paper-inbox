@@ -40,6 +40,10 @@ class InboxTests(unittest.TestCase):
   with self.assertRaises(RuntimeError):server.ingest(path)
   self.assertEqual(server.STATUS['last_update'],'')
   self.assertFalse(server.failed_empty_snapshot({'papers':[],'status':'complete','warnings':[]}))
+ def test_openai_summary_route_uses_selected_model_and_effort(self):
+  with patch.object(server.app_settings,'get_settings',return_value={'summary_provider':'openai','summary_model':'gpt-6.1-sol','summary_effort':'medium'}),patch('summary_api.ensure_summaries') as api,patch.object(server,'complete_bilingual_summaries',side_effect=AssertionError('Codex not used for API summaries')):
+   papers=[{'id':'a'}];server.summarize(papers,'2026-11-08')
+   api.assert_called_once_with(papers,'2026-11-08',server.CACHE,'gpt-6.1-sol','medium')
  def test_summary_sentence_limit(self):
   server.validate_summary('问题：第一句。\n\n方法：第一句。第二句。\n\n结果：第一句。第二句。第三句。')
   with self.assertRaises(ValueError):server.validate_summary('问题：一。二。三。四。\n方法：一。\n结果：一。')
