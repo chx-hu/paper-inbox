@@ -9,6 +9,7 @@ typealias ViewState<Value> = SwiftUI.State<Value>
 
 enum UIStrings {
     static let english: [String: String] = [
+        "通用": "General", "模型与密钥": "Models & keys", "文献来源": "Sources", "分类与期刊": "Categories & journals",
         "摘要生成": "Summaries", "摘要服务": "Provider", "API 密钥": "API key",
         "已保存到钥匙串": "Saved in Keychain", "未配置密钥": "No API key configured",
         "留空保留现有密钥": "Leave blank to keep the current key",
@@ -568,137 +569,210 @@ struct InboxSettingsView: View {
     @ViewState private var choosingJournals = false
     @ViewState private var apiKey = ""
     @ViewState private var keyConfigured = SummaryKeychain.configured()
+    @ViewState private var section = "models"
+    private let accent = Color(red: 0.14, green: 0.38, blue: 0.34)
     func L(_ value: String) -> String { UIStrings.text(value, language: app.language) }
     init(model: InboxModel) {
         self.model = model
         _app = ViewState(initialValue: model.appSettings)
         _reading = ViewState(initialValue: model.readingSettings)
     }
-    var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-            Text(L("设置")).font(.system(size: 22, weight: .semibold))
-            GroupBox(L("语言")) {
-                Picker(L("语言"), selection: $app.language) {
-                    Text("中文").tag("zh-Hans")
-                    Text("English").tag("en")
-                }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading).padding(12)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            GroupBox(L("摘要生成")) {
-                VStack(alignment: .leading, spacing: 12) {
+    private var sectionTitle: String {
+        L(section == "general" ? "通用" : section == "models" ? "模型与密钥" : "文献来源")
+    }
+    private func row<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(L(title)).font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 116, alignment: .leading)
+            content().frame(maxWidth: .infinity, alignment: .leading)
+        }.frame(minHeight: 27)
+    }
+    private func card<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 15) {
+            Label(L(title), systemImage: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(accent)
+            content()
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.065), lineWidth: 1))
+    }
+    private var generalSettings: some View {
+        VStack(spacing: 16) {
+            card("语言", symbol: "globe") {
+                row("语言") {
+                    Picker(L("语言"), selection: $app.language) {
+                        Text("中文").tag("zh-Hans")
+                        Text("English").tag("en")
+                    }.labelsHidden().pickerStyle(.segmented).frame(width: 210)
+                }
+            }
+            card("每日文献", symbol: "calendar") {
+                row("每日精选") {
+                    HStack {
+                        Text("\(app.daily_limit) \(L("篇"))").monospacedDigit()
+                        Spacer()
+                        Stepper(L("每日精选"), value: $app.daily_limit, in: 1...50).labelsHidden().fixedSize()
+                    }
+                }
+                Text(L("来源与篇数在下次更新时生效。")).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+    private var modelSettings: some View {
+        VStack(spacing: 16) {
+            card("摘要生成", symbol: "text.alignleft") {
+                row("摘要服务") {
                     Picker(L("摘要服务"), selection: $app.summary_provider) {
                         Text("Codex").tag("codex")
                         Text("OpenAI API").tag("openai")
-                    }
-                    if app.summary_provider == "openai" {
+                    }.labelsHidden()
+                }
+                if app.summary_provider == "openai" {
+                    row("模型") {
                         Picker(L("模型"), selection: Binding(get: { app.summary_model }, set: { value in
                             app.summary_model = value
                             if !AppSettings.summaryEfforts(value).contains(app.summary_effort) { app.summary_effort = "medium" }
                         })) {
                             ForEach(AppSettings.summaryModels, id: \.self) { Text($0).tag($0) }
-                        }
+                        }.labelsHidden()
+                    }
+                    row("推理强度") {
                         Picker(L("推理强度"), selection: $app.summary_effort) {
                             ForEach(AppSettings.summaryEfforts(app.summary_model), id: \.self) { Text($0).tag($0) }
-                        }
-                        SecureField(L("API 密钥") + " · " + L("留空保留现有密钥"), text: $apiKey).textFieldStyle(.roundedBorder)
-                        Text(L(keyConfigured ? "已保存到钥匙串" : "未配置密钥")).font(.caption).foregroundStyle(.secondary)
+                        }.labelsHidden()
                     }
-                }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                    Divider().padding(.vertical, 1)
+                    row("API 密钥") {
+                        SecureField(L("API 密钥"), text: $apiKey).textFieldStyle(.roundedBorder)
+                    }
+                    HStack(spacing: 6) {
+                        Image(systemName: keyConfigured ? "checkmark.shield" : "key")
+                        Text(L(keyConfigured ? "已保存到钥匙串" : "未配置密钥"))
+                        Spacer()
+                    }.font(.caption).foregroundStyle(keyConfigured ? accent : .secondary)
+                    Text(L("留空保留现有密钥")).font(.caption).foregroundStyle(.secondary)
+                }
             }
-            GroupBox(L("收藏精读")) {
-                VStack(spacing: 12) {
-                    Picker(L("模型"), selection: Binding(
-                        get: { reading.model },
-                        set: { selected in
-                            reading.model = selected
-                            reading.effort = ReadingSettings.defaultEffort(for: selected)
-                        }
-                    )) {
-                        ForEach(ReadingSettings.models, id: \.self) { item in
-                            Text(ReadingSettings.modelName(item)).tag(item)
-                        }
-                    }
+            card("收藏精读", symbol: "book.closed") {
+                row("模型") {
+                    Picker(L("模型"), selection: Binding(get: { reading.model }, set: { selected in
+                        reading.model = selected
+                        reading.effort = ReadingSettings.defaultEffort(for: selected)
+                    })) {
+                        ForEach(ReadingSettings.models, id: \.self) { Text($0).tag($0) }
+                    }.labelsHidden()
+                }
+                row("推理强度") {
                     Picker(L("推理强度"), selection: $reading.effort) {
                         ForEach(ReadingSettings.efforts, id: \.self) { Text($0).tag($0) }
-                    }
-                }.padding(12)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            GroupBox(L("每日文献")) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Stepper("\(L("每日精选")) \(app.daily_limit) \(L("篇"))", value: $app.daily_limit, in: 1...50)
-                    HStack(spacing: 18) {
-                        ForEach(AppSettings.sources, id: \.self) { source in
-                            Toggle(source == "Journals" ? L("期刊") : source, isOn: Binding(
-                                get: { app.enabled_sources.contains(source) },
-                                set: { enabled in
-                                    app.enabled_sources.removeAll { $0 == source }
-                                    if enabled { app.enabled_sources.append(source) }
-                                    app.enabled_sources = AppSettings.sources.filter { app.enabled_sources.contains($0) }
-                                }
-                            ))
-                        }
-                    }
-                    if app.enabled_sources.isEmpty {
-                        Text(L("至少选择一个来源")).font(.caption).foregroundStyle(.red)
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(L("arXiv 分类")).font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Link(L("官方分类说明"), destination: URL(string: "https://arxiv.org/category_taxonomy")!).font(.caption)
-                        }
-                        TextField("cs.AI+cs.LG+q-bio.BM", text: $app.arxiv_query)
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(L("bioRxiv 分类")).font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Link(L("官方分类说明"), destination: URL(string: "https://www.biorxiv.org/collection")!).font(.caption)
-                        }
-                        TextField("bioinformatics+biophysics", text: $app.biorxiv_query)
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Button { choosingJournals = true } label: {
-                            HStack {
-                                Text(L("选择期刊"))
-                                Spacer()
-                                Text("\(app.journals.count)").monospacedDigit().foregroundStyle(.secondary)
-                                Image(systemName: "chevron.right").font(.caption)
-                            }
-                        }
-                        Text(model.journalOptions.filter { app.journals.contains($0.id) }.map { $0.name }.joined(separator: " · "))
-                            .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
-                        if app.enabled_sources.contains("Journals"), app.journals.isEmpty {
-                            Text(L("至少选择一本期刊")).font(.caption).foregroundStyle(.red)
-                        }
-                    }
-                    Text(L("来源与篇数在下次更新时生效。")).font(.caption).foregroundStyle(.secondary)
-                }.textFieldStyle(.roundedBorder).padding(12)
+                    }.labelsHidden()
+                }
             }
-            if !model.settingsMessage.isEmpty {
-                Text(L(model.settingsMessage)).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private var sourceSettings: some View {
+        VStack(spacing: 16) {
+            card("文献来源", symbol: "square.stack") {
+                HStack(spacing: 22) {
+                    ForEach(AppSettings.sources, id: \.self) { source in
+                        Toggle(source == "Journals" ? L("期刊") : source, isOn: Binding(get: {
+                            app.enabled_sources.contains(source)
+                        }, set: { enabled in
+                            app.enabled_sources.removeAll { $0 == source }
+                            if enabled { app.enabled_sources.append(source) }
+                            app.enabled_sources = AppSettings.sources.filter { app.enabled_sources.contains($0) }
+                        })).toggleStyle(.checkbox)
+                    }
+                }
+                if app.enabled_sources.isEmpty { Text(L("至少选择一个来源")).font(.caption).foregroundStyle(.red) }
             }
-            if !model.settingsError.isEmpty {
-                Text(L(model.settingsError)).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+            card("分类与期刊", symbol: "line.3.horizontal.decrease") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(L("arXiv 分类")).font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Link(L("官方分类说明"), destination: URL(string: "https://arxiv.org/category_taxonomy")!).font(.caption)
+                    }
+                    TextField("cs.AI+cs.LG+q-bio.BM", text: $app.arxiv_query).textFieldStyle(.roundedBorder)
+                }.disabled(!app.enabled_sources.contains("arXiv"))
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(L("bioRxiv 分类")).font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Link(L("官方分类说明"), destination: URL(string: "https://www.biorxiv.org/collection")!).font(.caption)
+                    }
+                    TextField("bioinformatics+biophysics", text: $app.biorxiv_query).textFieldStyle(.roundedBorder)
+                }.disabled(!app.enabled_sources.contains("bioRxiv"))
+                Divider()
+                Button { choosingJournals = true } label: {
+                    HStack {
+                        Text(L("选择期刊"))
+                        Spacer()
+                        Text("\(app.journals.count)").monospacedDigit().foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                    }.padding(.vertical, 3).contentShape(Rectangle())
+                }.buttonStyle(.plain).disabled(!app.enabled_sources.contains("Journals"))
+                Text(model.journalOptions.filter { app.journals.contains($0.id) }.map { $0.name }.joined(separator: " · "))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3).lineSpacing(3)
+                if app.enabled_sources.contains("Journals"), app.journals.isEmpty {
+                    Text(L("至少选择一本期刊")).font(.caption).foregroundStyle(.red)
+                }
             }
-                }.padding(26)
-            }.frame(maxHeight: 650)
+            Text(L("来源与篇数在下次更新时生效。")).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 24) {
+                    Text(L("设置")).font(.system(size: 22, weight: .semibold)).padding(.horizontal, 10)
+                    VStack(spacing: 6) {
+                        ForEach([("general", "通用", "gearshape"), ("models", "模型与密钥", "cpu"), ("sources", "文献来源", "square.stack")], id: \.0) { id, title, symbol in
+                            Button { section = id } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: symbol).frame(width: 18)
+                                    Text(L(title)).font(.system(size: 13, weight: section == id ? .semibold : .regular))
+                                    Spacer(minLength: 0)
+                                }.foregroundStyle(section == id ? accent : Color.primary)
+                                    .padding(.horizontal, 11).padding(.vertical, 10)
+                                    .background(section == id ? accent.opacity(0.11) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    Spacer()
+                }.padding(.horizontal, 14).padding(.top, 28).frame(width: 168)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.65))
+                Divider()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(sectionTitle).font(.system(size: 20, weight: .semibold)).padding(.bottom, 2)
+                        Group {
+                            if section == "general" { generalSettings }
+                            else if section == "models" { modelSettings }
+                            else { sourceSettings }
+                        }
+                    }.padding(26).frame(maxWidth: .infinity, alignment: .leading)
+                }.background(Color(nsColor: .controlBackgroundColor).opacity(0.28))
+            }
             Divider()
-            HStack {
+            HStack(spacing: 12) {
                 if model.savingSettings { ProgressView().controlSize(.small) }
-                Spacer()
+                if !model.settingsError.isEmpty {
+                    Text(L(model.settingsError)).font(.caption).foregroundStyle(.red).textSelection(.enabled).lineLimit(2)
+                } else if !model.settingsMessage.isEmpty {
+                    Label(L(model.settingsMessage), systemImage: "checkmark.circle").font(.caption).foregroundStyle(accent).lineLimit(2)
+                }
+                Spacer(minLength: 8)
                 Button(L("关闭")) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(L("保存")) { Task {
                     do {
                         if !apiKey.isEmpty { try SummaryKeychain.save(apiKey); apiKey = ""; keyConfigured = true }
                         await model.saveSettings(app: app, reading: reading)
                     } catch { model.settingsError = L("密钥保存失败，请解锁钥匙串后重试。") }
-                } }
-                    .keyboardShortcut(.defaultAction)
+                } }.keyboardShortcut(.defaultAction)
                     .disabled(app.enabled_sources.isEmpty || (app.enabled_sources.contains("Journals") && app.journals.isEmpty))
-            }.padding(.horizontal, 26).padding(.vertical, 16)
-        }.frame(width: 600).disabled(model.savingSettings)
+            }.padding(.horizontal, 24).padding(.vertical, 15)
+        }.frame(width: 760, height: 620).disabled(model.savingSettings)
             .interactiveDismissDisabled(model.savingSettings)
             .sheet(isPresented: $choosingJournals) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -706,31 +780,19 @@ struct InboxSettingsView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(model.journalOptions) { journal in
-                                Toggle(journal.name, isOn: Binding(
-                                    get: { app.journals.contains(journal.id) },
-                                    set: { enabled in
-                                        app.journals.removeAll { $0 == journal.id }
-                                        if enabled { app.journals.append(journal.id) }
-                                        app.journals = model.journalOptions.map { $0.id }.filter { app.journals.contains($0) }
-                                    }
-                                )).toggleStyle(.checkbox)
+                                Toggle(journal.name, isOn: Binding(get: { app.journals.contains(journal.id) }, set: { enabled in
+                                    app.journals.removeAll { $0 == journal.id }
+                                    if enabled { app.journals.append(journal.id) }
+                                    app.journals = model.journalOptions.map { $0.id }.filter { app.journals.contains($0) }
+                                })).toggleStyle(.checkbox)
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     }.frame(height: 390)
-                    HStack {
-                        Spacer()
-                        Button(L("关闭")) { choosingJournals = false }.keyboardShortcut(.defaultAction)
-                    }
+                    HStack { Spacer(); Button(L("关闭")) { choosingJournals = false }.keyboardShortcut(.defaultAction) }
                 }.padding(24).frame(width: 460)
             }
-            .onChange(of: app) { _ in
-                model.settingsMessage = ""
-                model.settingsError = ""
-            }
-            .onChange(of: reading) { _ in
-                model.settingsMessage = ""
-                model.settingsError = ""
-            }
+            .onChange(of: app) { _ in model.settingsMessage = ""; model.settingsError = "" }
+            .onChange(of: reading) { _ in model.settingsMessage = ""; model.settingsError = "" }
     }
 }
 
