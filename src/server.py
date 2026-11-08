@@ -13,7 +13,7 @@ CACHE=BASE/'cache'; CACHE.mkdir(exist_ok=True)
 DB=CACHE/'inbox.sqlite'
 TZ=dt.timezone(dt.timedelta(hours=8))
 LOCK=threading.RLock()
-STATUS={'message':'正在载入本地文献','updating':False,'last_update':'','warnings':[]}
+STATUS={'message':'正在载入本地文献','updating':False,'last_update':'','last_update_at':'','warnings':[]}
 
 @contextmanager
 def connect():
@@ -68,6 +68,8 @@ def enrich(p):
   if doi.startswith('10.'):
    p['doi']=doi
    m=fetch_json('https://api.crossref.org/works/'+quote(doi,safe=''))['message']
+   primary=m.get('resource',{}).get('primary',{}).get('URL')
+   if primary:p['publisher_url']=primary
    authors=m.get('author',[]); p['authors']=[' '.join(filter(None,[x.get('given'),x.get('family')])) or x.get('name','') for x in authors]
    p['affiliations']=list(dict.fromkeys(a['name'] for x in authors for a in x.get('affiliation',[]) if a.get('name')))
    from author_affiliations import from_crossref
@@ -81,12 +83,12 @@ def enrich(p):
   if 'arxiv.org/abs/' in p['url']:p['pdf_url']=p['url'].replace('/abs/','/pdf/')
  except Exception:
   p['metadata_note']='部分作者、单位或日期未获取'
- from publisher_metadata import enrich_publisher
+ from publisher_metadata import enrich_publisher, enrich_europepmc
  result=enrich_publisher(p)
  if result.get('author_metadata_error') and original.get('author_metadata_schema'):
   for key in ('authors','affiliations','author_affiliations','author_metadata_url','author_metadata_schema','author_metadata_version_url'):
    if key in original:result[key]=original[key]
- return result
+ return enrich_europepmc(result)
 
 def validate_summary(value):
  if value.strip()=='原摘要未获取':return
@@ -117,8 +119,12 @@ def summarize(papers,day):
    p['summary_style']='pmr_v3'
    p['summary_source_hash']=hashlib.sha256(p.get('abstract','').encode()).hexdigest()
 
+def failed_empty_snapshot(data):
+ return not data.get('papers') and (data.get('status')=='partial' or bool(data.get('warnings')))
+
 def ingest(path):
  d=json.loads(path.read_text());day=d['schedule_date_shanghai']
+ if failed_empty_snapshot(d):raise RuntimeError('文献源检索失败，未获得候选论文；稍后自动重试')
  # Daily limit applies across enabled sources. Scores indicate interest.
  settings=app_settings.get_settings()
  candidates=[paper for paper in d['papers'] if app_settings.source_enabled(paper.get('source'),settings)]
@@ -161,6 +167,8 @@ def run_update():
   STATUS.update(updating=True,message='正在检查今天的文献')
  try:
   path=app_settings.candidate_path(CACHE/'runs',today(),app_settings.load_config())
+  if path.exists() and failed_empty_snapshot(json.loads(path.read_text())):
+   path.rename(path.with_name(path.stem+'-failed-'+str(time.time_ns())+'.json'))
   if not path.exists():
    # App gets a calendar-day snapshot even on first login before 06:00.
    runner=BASE/'src'/'retrieve_today.py'
@@ -190,6 +198,12 @@ def run_update():
     if proc.returncode:raise RuntimeError('检索进程失败')
   if not path.exists():raise RuntimeError('本次没有产生候选文件；请查看检索日志')
   ingest(path)
+  completed=dt.datetime.now(TZ).isoformat(timespec='seconds')
+  record={'last_update':today(),'last_update_at':completed}
+  temporary=CACHE/'update-completion.tmp'
+  temporary.write_text(json.dumps(record))
+  temporary.replace(CACHE/'update-completion.json')
+  with LOCK:STATUS['last_update_at']=completed
  except Exception as e:
   with LOCK:STATUS['message']='更新未完成：'+str(e)
  finally:
@@ -248,6 +262,10 @@ def scheduler():
   time.sleep(30)
 
 def bootstrap(path=None):
+ try:
+  record=json.loads((CACHE/'update-completion.json').read_text())
+  with LOCK:STATUS['last_update_at']=record.get('last_update_at','')
+ except (OSError,ValueError):pass
  if path is not None:
   with LOCK:STATUS['updating']=True
   try:ingest(path)
@@ -285,7 +303,7 @@ class Handler(BaseHTTPRequestHandler):
 def metadata_maintenance():
  from publisher_metadata import SCHEMA, publisher_url
  fields=('authors','affiliations','author_affiliations','doi','journal','author_metadata_schema',
-         'author_metadata_url','author_metadata_version_url','author_metadata_error','metadata_note')
+         'author_metadata_url','author_metadata_version_url','author_metadata_error','metadata_note','publisher_url','affiliation_fallback_url','affiliation_fallback_error')
  while True:
   try:
    with connect() as c: rows=c.execute('SELECT id,data FROM papers').fetchall()

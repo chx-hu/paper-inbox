@@ -34,6 +34,12 @@ class InboxTests(unittest.TestCase):
    server.action('p','favorite')
    x=server.snapshot()['papers'][0];self.assertTrue(x['favorite']);self.assertFalse(x['read']);self.assertEqual(x['zotero_status'],'')
    server.action('p','unfavorite');self.assertFalse(server.snapshot()['papers'][0]['favorite'])
+ def test_failed_empty_snapshot_is_not_success(self):
+  path=Path(self.tmp.name)/'failed.json'
+  path.write_text(json.dumps({'schedule_date_shanghai':'2026-11-08','papers':[],'status':'partial','warnings':['SSL failure']}))
+  with self.assertRaises(RuntimeError):server.ingest(path)
+  self.assertEqual(server.STATUS['last_update'],'')
+  self.assertFalse(server.failed_empty_snapshot({'papers':[],'status':'complete','warnings':[]}))
  def test_summary_sentence_limit(self):
   server.validate_summary('问题：第一句。\n\n方法：第一句。第二句。\n\n结果：第一句。第二句。第三句。')
   with self.assertRaises(ValueError):server.validate_summary('问题：一。二。三。四。\n方法：一。\n结果：一。')
@@ -114,5 +120,7 @@ class InboxTests(unittest.TestCase):
    pid=state['papers'][0]['id'];server.action(pid,'favorite');server.action(pid,'read')
    with patch.object(server,'summarize',side_effect=complete):server.run_update()
   state=server.snapshot();self.assertEqual(state['status']['last_update'],'2026-10-30')
+  self.assertEqual(json.loads((root/'update-completion.json').read_text())['last_update_at'],state['status']['last_update_at'])
+  self.assertTrue(state['status']['last_update_at'])
   self.assertTrue(state['papers'][0]['summary']);self.assertTrue(state['papers'][0]['favorite']);self.assertTrue(state['papers'][0]['read'])
 if __name__=='__main__':unittest.main()

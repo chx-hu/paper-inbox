@@ -8,6 +8,10 @@ typealias ViewState<Value> = SwiftUI.State<Value>
 
 enum UIStrings {
     static let english: [String: String] = [
+        "全部已读": "Read all",
+        "问题": "Problem", "方法": "Methods", "结果": "Results",
+        "更新完成": "Update complete",
+        "正在更新文献…": "Updating papers…",
         "全部标为已读": "Mark all as read",
         "将当前列表中的未读论文标为已读": "Mark unread papers in this list as read",
         "取消收藏会将 Zotero 文献移入回收站": "Unfavorite moves the Zotero item to Trash",
@@ -178,14 +182,16 @@ struct RunStatus: Decodable {
     var message: String = ""
     var updating: Bool = false
     var last_update: String = ""
+    var last_update_at: String = ""
     var warnings: [String] = []
-    enum CodingKeys: String, CodingKey { case message, updating, last_update, warnings }
+    enum CodingKeys: String, CodingKey { case message, updating, last_update, last_update_at, warnings }
     init() {}
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         message = (try? c.decode(String.self, forKey: .message)) ?? ""
         updating = (try? c.decode(Bool.self, forKey: .updating)) ?? false
         last_update = (try? c.decode(String.self, forKey: .last_update)) ?? ""
+        last_update_at = (try? c.decode(String.self, forKey: .last_update_at)) ?? ""
         warnings = (try? c.decode([String].self, forKey: .warnings)) ?? []
     }
 }
@@ -293,6 +299,7 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
     @Published var selected: String?
     @Published var filter = "未读"
     @Published var searching = ""
+    @Published var requestingUpdate = false
     @Published var markingAllRead = false
     @Published var busyIDs: Set<String> = []
     @Published var refreshing = false
@@ -481,7 +488,10 @@ struct ServerInfo: Decodable { let port: Int; let token: String }
         }
     }
     func update() {
+        guard !requestingUpdate && !status.updating else { return }
+        requestingUpdate = true
         Task {
+            defer { requestingUpdate = false }
             do { _ = try await request("/api/update", payload: [:]); await refresh() }
             catch { self.error = error.localizedDescription }
         }
@@ -659,18 +669,32 @@ struct InboxView: View {
             sidebar
             Divider()
             VStack(spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(L(model.filter == "未读" ? "今日值得读" : model.filter)).font(.system(size: 23, weight: .semibold))
-                    }
-                    Spacer()
-                    Button { model.markVisibleRead() } label: { Image(systemName: "checkmark.circle") }
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L(model.filter == "未读" ? "今日值得读" : model.filter)).font(.system(size: 23, weight: .semibold))
+                    HStack {
+                    Button { model.markVisibleRead() } label: { Label(L("全部已读"), systemImage: "checkmark.circle").fixedSize() }
                         .help(L("将当前列表中的未读论文标为已读"))
                         .accessibilityLabel(L("全部标为已读"))
                         .disabled(model.markingAllRead || !model.busyIDs.isEmpty || !model.visible.contains { !$0.read })
                     if model.status.updating { ProgressView().controlSize(.small) }
                     Button { model.update() } label: { Label(L(model.status.updating ? "更新中" : "更新"), systemImage: "arrow.clockwise") }
-                        .disabled(model.status.updating)
+                        .disabled(model.status.updating || model.requestingUpdate)
+                    Group {
+                        if model.status.updating || model.requestingUpdate {
+                            Text(L("更新中")).foregroundStyle(.secondary)
+                        } else if !model.error.isEmpty || model.status.message.hasPrefix("更新未完成") {
+                            Text(L("更新未完成")).foregroundStyle(.orange)
+                        } else if !model.status.last_update.isEmpty {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("更新完成")).foregroundStyle(accent)
+                                if !model.status.last_update_at.isEmpty {
+                                    Text(String(model.status.last_update_at.dropFirst(5).prefix(11)).replacingOccurrences(of: "T", with: " ")).monospacedDigit().foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }.font(.system(size: 11)).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer()
+                    }
                 }.padding(22)
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -734,9 +758,6 @@ struct InboxView: View {
                 Label(L("设置"), systemImage: "gearshape")
                     .frame(maxWidth: .infinity, alignment: .leading).padding(10)
             }.buttonStyle(InboxSurfaceStyle(cornerRadius: 8, accent: accent))
-            VStack(alignment: .leading, spacing: 8) {
-                Text(model.status.last_update.isEmpty ? L("尚未更新") : L("最近更新") + "\n" + model.status.last_update).font(.system(size: 10)).foregroundStyle(.secondary).lineSpacing(3)
-            }
         }.padding(18).frame(width: 190).background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
     }
     func readingStatus(_ reading: ReadingTask) -> some View {
@@ -787,7 +808,8 @@ struct InboxView: View {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let label = ["问题：", "方法：", "结果：", "问题:", "方法:", "结果:"].first { trimmed.hasPrefix($0) }
             if let label {
-                var heading = AttributedString(label)
+                let headingText = L(String(label.dropLast())) + (model.appSettings.language == "en" ? ": " : "：")
+                var heading = AttributedString(headingText)
                 heading.font = .system(size: 14, weight: .semibold)
                 content.append(heading)
                 content.append(AttributedString(String(trimmed.dropFirst(label.count))))

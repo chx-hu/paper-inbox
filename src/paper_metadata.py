@@ -10,8 +10,9 @@ import json
 import re
 import time
 from urllib.parse import quote, urlencode, urljoin, urlsplit
-from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.request import Request, build_opener, HTTPRedirectHandler, HTTPCookieProcessor
 from urllib.error import HTTPError
+from http.cookiejar import CookieJar
 import xml.etree.ElementTree as ET
 
 ALLOWED = ('arxiv.org', 'export.arxiv.org', 'doi.org', 'api.crossref.org',
@@ -19,6 +20,7 @@ ALLOWED = ('arxiv.org', 'export.arxiv.org', 'doi.org', 'api.crossref.org',
            'academic.oup.com', 'pnas.org', 'journals.plos.org', 'elifesciences.org',
            'pmc.ncbi.nlm.nih.gov', 'europepmc.org', 'link.springer.com',
            'onlinelibrary.wiley.com', 'pubs.acs.org', 'sciencedirect.com',
+           'genome.cshlp.org', 'www.ebi.ac.uk', 'idp.springer.com',
            'openreview.net', 'proceedings.mlr.press', 'jmlr.org', 'aclanthology.org')
 MAX_BYTES = 3 * 1024 * 1024
 
@@ -58,27 +60,31 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 class _Budget:
-    def __init__(self):
+    def __init__(self, max_requests=2, timeout_seconds=20, request_timeout=10):
         self.count = 0
-        self.deadline = time.monotonic() + 20
-        self.opener = build_opener(_NoRedirect())
+        self.max_requests = max_requests
+        self.request_timeout = request_timeout
+        self.deadline = time.monotonic() + timeout_seconds
+        self.opener = build_opener(_NoRedirect(), HTTPCookieProcessor(CookieJar()))
 
     def fetch(self, url):
         while True:
             if not _safe(url): raise ValueError('unsupported_public_source')
             remaining = self.deadline - time.monotonic()
-            if self.count >= 2 or remaining <= 0: raise TimeoutError('metadata_request_budget_exhausted')
+            if self.count >= self.max_requests or remaining <= 0: raise TimeoutError('metadata_request_budget_exhausted')
             self.count += 1
             req = Request(url, headers={'User-Agent':'PaperInbox/0.1 (personal scholarly metadata)',
                                         'Accept':'application/json, application/atom+xml, text/html;q=0.8'})
             try:
-                with self.opener.open(req, timeout=min(10, remaining)) as r:
+                with self.opener.open(req, timeout=min(self.request_timeout, remaining)) as r:
                     data = r.read(MAX_BYTES + 1)
                     if len(data) > MAX_BYTES: raise ValueError('metadata_response_too_large')
                     return data.decode(r.headers.get_content_charset() or 'utf-8', errors='replace'), url
             except HTTPError as exc:
                 if exc.code in (301,302,303,307,308) and exc.headers.get('Location'):
                     url = urljoin(url, exc.headers['Location'])
+                    if url.startswith('http://') and _safe('https://' + url[len('http://'):]):
+                        url = 'https://' + url[len('http://'):]
                     continue
                 raise
 
